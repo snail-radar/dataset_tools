@@ -3,7 +3,8 @@ convert a folder of snail radar format to a rosbag
 """
 
 from sensor_msgs import point_cloud2
-from sensor_msgs.msg import Imu, NavSatFix, CompressedImage, PointCloud2, PointCloud
+from sensor_msgs.msg import Imu, NavSatFix, CompressedImage, PointCloud2, PointCloud, ChannelFloat32
+from geometry_msgs.msg import Point32
 from nav_msgs.msg import Odometry
 from sensor_msgs.point_cloud2 import PointField
 import std_msgs.msg
@@ -136,8 +137,44 @@ def write_bag(input_folder, output_bag):
                         msg.data = img.read()
                         bag.write(topic, msg, msg.header.stamp)
         elif msg_type == PointCloud:
-            pass
-                
+            file_path = os.path.dirname(file_path)
+            for _, _, files in os.walk(file_path):
+                for file in files:
+                    if file.endswith('.bin'):
+                        with open(os.path.join(file_path, file), 'rb') as f:
+                            # first 2 ii as points number and channels number
+                            num_points = struct.unpack('I', f.read(4))[0]
+                            num_channels = struct.unpack('I', f.read(4))[0]
+                            # unpack 3d points
+                            points = []
+                            for i in range(num_points):
+                                point = []
+                                for j in range(3):
+                                    point.append(struct.unpack('f', f.read(4))[0])
+                                points.append(point)   
+                            # unpack channels
+                            channels = []
+                            for i in range(num_channels):
+                                channel = []
+                                for j in range(num_points):
+                                    channel.append(struct.unpack('f', f.read(4))[0])
+                                channels.append(channel)
+                            # create PointCloud message
+                            msg = PointCloud()
+                            msg.header.stamp = rospy.Time(int(file.split('.')[0]), int(file.split('.')[1]))
+                            msg.header.frame_id = 'eagleg7'
+                            for i in range(num_points):
+                                point = Point32()
+                                point.x = points[i][0]
+                                point.y = points[i][1]
+                                point.z = points[i][2]
+                                msg.points.append(point)
+                            for i in range(num_channels):
+                                channel = ChannelFloat32()
+                                channel.name = f'channel_{i}'
+                                channel.values = channels[i]
+                                msg.channels.append(channel)
+                            bag.write(topic, msg, msg.header.stamp)     
 
     bag.close()
 

@@ -151,11 +151,15 @@ def extract_and_save(bag_file, output_dir):
             file_path = os.path.dirname(file_path)
             for _, msg, t in bag.read_messages(topics=[topic]):
                 pcd_path = os.path.join(file_path, f'{t.secs}.{t.nsecs:09d}.bin')
+                # print('points size: ', len(msg.points))
                 with open(pcd_path, 'wb') as f:
+                    # first line save points size and channels size
+                    f.write(struct.pack('ii', len(msg.points), len(msg.channels)))
                     for point in msg.points:
                         f.write(struct.pack('fff', point.x, point.y, point.z))
                     ## save channel data
                     for channel in msg.channels:
+                        # print('channels: ', channel.name, len(channel.values))
                         for data in channel.values:
                             f.write(struct.pack('f', data))
                     
