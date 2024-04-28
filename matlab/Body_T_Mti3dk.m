@@ -1,4 +1,4 @@
-function T = Mti3dkToBody(comment)
+function T = Body_T_Mti3dk(comment)
 if nargin < 1
     comment = 'refined';
 end
@@ -18,7 +18,7 @@ switch comment
             0.994106 -0.101923  0.036942 -0.001295;
             -0.043187 -0.059763  0.997278  0.184497;
             0.000000  0.000000  0.000000  1.000000]; % estimated by lidar IMU init.
-        T = Xt32ToBody() * inv(T_Mti3dk_Xt32);
+        T = Body_T_Xt32() * inv(T_Mti3dk_Xt32);
     otherwise
         R = R3d(3);
         p = [0; 0; -0.18];

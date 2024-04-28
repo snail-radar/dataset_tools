@@ -1,4 +1,4 @@
-function T = Zed2ImuToBody()
+function T = Body_T_Zed2Imu()
 %% zed2 IMU frame to body frame transformation that 
 % transforms a point in zed2 IMU frame to the body frame.
 R_body_zed2 = eye(3);
@@ -12,5 +12,5 @@ T_Zed2Imu_Xt32 = ...
     -0.004711  0.010231  0.999937  0.197481; ...
     0.000000  0.000000  0.000000  1.000000]; % estimated by lidar IMU init.
 
-T = Xt32ToBody() * inv(T_Zed2Imu_Xt32);
+T = Body_T_Xt32() * inv(T_Zed2Imu_Xt32);
 end

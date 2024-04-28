@@ -1,4 +1,4 @@
-function T = Zed2LeftCamToBody()
+function T = Body_T_Zed2LeftCam()
 % A. manually measured
 R_body_leftcam = [0, 0, 1; -1, 0, 0; 0, -1, 0];
 p_body_leftcam = [0.125; 0.07; -0.195];
@@ -16,11 +16,12 @@ qz = -0.0010711626382544637;
 qw = 0.9999980330467224;
 q_zed2leftcamx_zed2imu = [qw, qx, qy, qz];
 T_zed2leftcamx_zed2imu = eye(4);
-T_zed2leftcamx_zed2imu(1:3, 1:3) = quat2dcm(q_zed2leftcamx_zed2imu);
+% do not use quat2dcm from the aerospace toolbox which is different in convention.
+T_zed2leftcamx_zed2imu(1:3, 1:3) = quat2rotm(q_zed2leftcamx_zed2imu);
 T_zed2leftcamx_zed2imu(1:3, 4) = [tx; ty; tz];
 
 T_rdf_zed2leftcamx = eye(4);
 T_rdf_zed2leftcamx(1:3, 1:3) = [0, -1, 0; 0, 0, -1; 1, 0, 0];
 T_zed2leftcam_imu = T_rdf_zed2leftcamx * T_zed2leftcamx_zed2imu;
-T = Zed2ImuToBody() * inv(T_zed2leftcam_imu);
+T = Body_T_Zed2Imu() * inv(T_zed2leftcam_imu);
 end

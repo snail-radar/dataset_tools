@@ -1,4 +1,4 @@
-function T = Ars548ToBody(date)
+function T = Body_T_Ars548(date)
 p_body_ars548 = [0; 0; 0.07];
 R_body_ars548 = eye(3); % nominal
 if date < 20231104 % no ars548
