@@ -30,6 +30,22 @@ topics = {
     '/hesai/pandar': ('xt32/timestamps.pcd', PointCloud2),
 }
 
+frame_ids = {
+    '/x36d/imu_raw': 'x36d',
+    '/x36d/gnss': 'x36d_gnss',
+    '/x36d/gnss_ins': 'x36d',
+    '/mti3dk/imu': 'mti3dk',
+    '/zed2i/zed_node/imu/data': 'zed2i_imu',
+    '/zed2i/zed_node/odom': 'zed2i_imu',
+    '/zed2i/zed_node/left_raw/image_raw_gray/compressed': 'zed2i_cam',
+    '/zed2i/zed_node/right_raw/image_raw_gray/compressed': 'zed2i_cam',
+    '/ars548': 'ars548',
+    '/radar_enhanced_pcl2': 'eagleg7',
+    '/radar_pcl2': 'eagleg7',
+    '/radar_trk': 'eagleg7',
+    '/hesai/pandar': 'xt32',
+}
+
 PointCloud2fields = {
     '/ars548': 'x y z doppler intensity range_std azimuth_std elevation_std doppler_std',
     '/hesai/pandar': 'x y z intensity timestamp ring',
@@ -67,15 +83,30 @@ def read_pcd_file(filename):
 
         return fields, points
 
-def create_point_cloud2_msg(fields, points, timestamp):
+def create_point_cloud2_msg(fields, points, timestamp, topic='/ars548'):
     """Create a PointCloud2 message from fields and point data."""
     header = std_msgs.msg.Header()
     header.stamp = timestamp  # Adjust this according to your needs
-    header.frame_id = "frame"  # Set the appropriate frame id
+    header.frame_id = frame_ids[topic]
 
     topic_fields = []
+    offset = 0
     for i, field in enumerate(fields):
-        topic_fields.append(PointField(field, 4*i, PointField.FLOAT32, 1))
+        if topic == '/hesai/pandar' and field == 'ring':
+            topic_fields.append(PointField(field, offset, PointField.UINT16, 1))
+            offset += 2
+        else:
+            topic_fields.append(PointField(field, offset, PointField.FLOAT32, 1))
+            offset += 4
+
+    if topic == '/hesai/pandar':
+        points = np.array(points, dtype=np.float32)
+        points[:, -1] = points[:, -1].astype(np.uint16)
+        points_dtype = np.dtype([(fields[i], np.float32) if fields[i] != 'ring' else (fields[i], np.uint16) for i in range(len(fields))])
+        structured_points = np.zeros(points.shape[0], dtype=points_dtype)
+        for i, field in enumerate(fields):
+            structured_points[field] = points[:, i]
+        points = structured_points
 
     # Pass the point data directly
     cloud2_msg = point_cloud2.create_cloud(header, topic_fields, points)
@@ -95,6 +126,7 @@ def write_bag(input_folder, output_bag):
                     parts = line.split()
                     msg = msg_type()
                     msg.header.stamp = rospy.Time(int(parts[0].split('.')[0]), int(parts[0].split('.')[1]))
+                    msg.header.frame_id = frame_ids[topic]
                     if msg_type == Imu:
                         msg.linear_acceleration.x = float(parts[1])
                         msg.linear_acceleration.y = float(parts[2])
@@ -122,7 +154,7 @@ def write_bag(input_folder, output_bag):
                     if file.endswith('.pcd'):
                         fields, points = read_pcd_file(os.path.join(file_path, file))
                         timestamp = rospy.Time(int(file.split('.')[0]), int(file.split('.')[1]))
-                        pc2 = create_point_cloud2_msg(fields, points, timestamp)
+                        pc2 = create_point_cloud2_msg(fields, points, timestamp, topic)
                         bag.write(topic, pc2, pc2.header.stamp)
         elif msg_type == CompressedImage:
             times_path = file_path
