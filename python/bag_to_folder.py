@@ -10,19 +10,19 @@ ros topics                                                  subfolder and filena
 /mti3dk/imu  --> Imu                                        mti3dk/imu.txt
 
 /zed2i/zed_node/imu/data;                                   zed2i/imu.txt
-/zed2i/zed_node/left_raw/image_raw_gray/compressed;         zed2i/left/timestamps.txt zed2i/left/timestampinnanosecs.jpg ...
+/zed2i/zed_node/left_raw/image_raw_gray/compressed;         zed2i/left/times.txt zed2i/left/timestamps.jpg ...
 /zed2i/zed_node/odom;                                       zed2i/odom.txt
-/zed2i/zed_node/right_raw/image_raw_gray/compressed;        zed2i/right/timestamps.txt zed2i/right/timestampinnanosecs.jpg ...
+/zed2i/zed_node/right_raw/image_raw_gray/compressed;        zed2i/right/times.txt zed2i/right/timestamps.jpg ...
 
-/ars548;                                                    ars548/timestamps.txt ars548/timestampinnanosecs.pcd/bin ...
+/ars548;                                                    ars548/times.txt ars548/timestamps.pcd/bin ...
 
 /radar_enhanced_pcl;                                        N/A
-/radar_enhanced_pcl2                                        eagleg7/enhanced/timestamps.txt eagleg7/enhanced/timestampinnanosecs.pcd/bin ...
+/radar_enhanced_pcl2                                        eagleg7/enhanced/times.txt eagleg7/enhanced/timestamps.pcd/bin ...
 /radar_pcl;                                                 N/A
-/radar_pcl2;                                                eagleg7/pcl/timestamps.txt eagleg7/pcl/timestampinnanosecs.pcd/bin ...
-/radar_trk;                                                 eagleg7/trk/timestamps.txt eagleg7/trk/timestampinnanosecs.pcd/bin ...
+/radar_pcl2;                                                eagleg7/pcl/times.txt eagleg7/pcl/timestamps.pcd/bin ...
+/radar_trk;                                                 eagleg7/trk/times.txt eagleg7/trk/timestamps.pcd/bin ...
 
-/hesai/pandar                                               pandar/timestamps.txt pandar/timestampinnanosecs.pcd/bin ...
+/hesai/pandar                                               pandar/times.txt pandar/timestamps.pcd/bin ...
 
 """
 
@@ -51,7 +51,7 @@ def extract_and_save(bag_file, output_dir):
         '/radar_enhanced_pcl2': ('eagleg7/enhanced/timestamps.pcd', PointCloud2),
         '/radar_pcl2': ('eagleg7/pcl/timestamps.pcd', PointCloud2),
         '/radar_trk': ('eagleg7/trk/timestamps.pcd', PointCloud),
-        '/hesai/pandar': ('xt32/timestamps.pcd', PointCloud2),
+        '/hesai/pandar': ('xt32/timestamps.pcd', PointCloud2), # timestamps.pcd is in seconds, for example: 1716467261.084892076.pcd
     }
 
     PointCloud2fields = {
@@ -96,7 +96,7 @@ def extract_and_save(bag_file, output_dir):
                                 f'{msg.pose.pose.orientation.x} {msg.pose.pose.orientation.y} {msg.pose.pose.orientation.z} {msg.pose.pose.orientation.w}\n')   
         elif msg_type == PointCloud2:
             file_path = os.path.dirname(file_path)
-            times_path = os.path.join(file_path, 'timestamps.txt')
+            times_path = os.path.join(file_path, 'times.txt')
             fields = PointCloud2fields.get(topic, 'x y z').split()  # Use default fields if not specified
             with open(times_path, 'w') as f1:
                 for _, msg, _ in bag.read_messages(topics=[topic]):
@@ -187,5 +187,3 @@ if __name__ == '__main__':
     extract_and_save(args.bag_file, args.output_dir)
     # zip
     os.system(f'zip -r {args.output_dir}.zip {args.output_dir}')
-
-

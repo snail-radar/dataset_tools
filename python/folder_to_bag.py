@@ -92,9 +92,12 @@ def create_point_cloud2_msg(fields, points, timestamp, topic='/ars548'):
     topic_fields = []
     offset = 0
     for i, field in enumerate(fields):
-        if topic == '/hesai/pandar' and field == 'ring':
+        if field == 'ring':
             topic_fields.append(PointField(field, offset, PointField.UINT16, 1))
             offset += 2
+        elif field == 'timestamp':
+            topic_fields.append(PointField(field, offset, PointField.FLOAT64, 1))
+            offset += 8
         else:
             topic_fields.append(PointField(field, offset, PointField.FLOAT32, 1))
             offset += 4
@@ -102,7 +105,18 @@ def create_point_cloud2_msg(fields, points, timestamp, topic='/ars548'):
     if topic == '/hesai/pandar':
         points = np.array(points, dtype=np.float32)
         points[:, -1] = points[:, -1].astype(np.uint16)
-        points_dtype = np.dtype([(fields[i], np.float32) if fields[i] != 'ring' else (fields[i], np.uint16) for i in range(len(fields))])
+        points[:, -2] = points[:, -2].astype(np.float64)
+        fields_dtype = []
+        for i, field in enumerate(fields):
+            if field == 'ring':
+                dtype = np.uint16
+            elif field == 'timestamp':
+                dtype = np.float64
+            else:
+                dtype = np.float32
+            fields_dtype.append((field, dtype))
+        points_dtype = np.dtype(fields_dtype)
+        # points_dtype = np.dtype([(fields[i], np.float32) if fields[i] != 'ring' else (fields[i], np.uint16) for i in range(len(fields))])
         structured_points = np.zeros(points.shape[0], dtype=points_dtype)
         for i, field in enumerate(fields):
             structured_points[field] = points[:, i]
