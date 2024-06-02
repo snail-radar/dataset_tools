@@ -148,6 +148,10 @@ def write_bag(input_folder, output_bag):
                         msg.angular_velocity.x = float(parts[4])
                         msg.angular_velocity.y = float(parts[5])
                         msg.angular_velocity.z = float(parts[6])
+                        msg.orientation.x = float(parts[7])
+                        msg.orientation.y = float(parts[8])
+                        msg.orientation.z = float(parts[9])
+                        msg.orientation.w = float(parts[10])
                     elif msg_type == NavSatFix:
                         msg.latitude = float(parts[1])
                         msg.longitude = float(parts[2])

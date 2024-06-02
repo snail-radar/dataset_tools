@@ -85,7 +85,8 @@ def extract_and_save(bag_file, output_dir):
                     if msg_type == Imu:
                         f.write(f'{msg.header.stamp.secs}.{msg.header.stamp.nsecs:09d} '
                                 f'{msg.linear_acceleration.x} {msg.linear_acceleration.y} {msg.linear_acceleration.z} '
-                                f'{msg.angular_velocity.x} {msg.angular_velocity.y} {msg.angular_velocity.z}\n')
+                                f'{msg.angular_velocity.x} {msg.angular_velocity.y} {msg.angular_velocity.z} '
+                                f'{msg.orientation.x} {msg.orientation.y} {msg.orientation.z} {msg.orientation.w}\n')
                     elif msg_type == NavSatFix:
                         f.write(f'{msg.header.stamp.secs}.{msg.header.stamp.nsecs:09d} '
                                 f'{msg.latitude} {msg.longitude} {msg.altitude} ')
@@ -187,3 +188,5 @@ if __name__ == '__main__':
     extract_and_save(args.bag_file, args.output_dir)
     # zip
     os.system(f'zip -r {args.output_dir}.zip {args.output_dir}')
+
+
