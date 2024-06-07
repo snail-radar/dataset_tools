@@ -186,7 +186,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     extract_and_save(args.bag_file, args.output_dir)
-    # zip
-    os.system(f'zip -r {args.output_dir}.zip {args.output_dir}')
-
 

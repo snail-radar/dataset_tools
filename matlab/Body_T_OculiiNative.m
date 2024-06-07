@@ -1,5 +1,5 @@
 function T = Body_T_OculiiNative(comment)
-% The transform of the oculii's native frame relative to the body frame.
+% The transform of the oculii's native frame (right down forward) relative to the body frame.
 if nargin < 1
     comment = 'refined';
 end

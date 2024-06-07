@@ -1,5 +1,5 @@
 function T = Body_T_Oculii(comment)
-% The transform of the oculii point cartesian frame relative to the body frame.
+% The transform of the oculii point cartesian frame (forward left up) relative to the body frame.
 if nargin < 1
     comment = 'refined';
 end
