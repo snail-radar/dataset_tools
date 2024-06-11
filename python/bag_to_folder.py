@@ -61,6 +61,8 @@ def extract_and_save(bag_file, output_dir):
         '/radar_pcl2': 'x y z Doppler Range Power Alpha Beta rangeAccu aziAccu eleAccu dopplerAccu recoveredSpeed dotFlags denoiseFlag historyFrameFlag dopplerCorrectionFlag',
     }
 
+    hesai_fieldtypecodes = ('f', 'f', 'f', 'f', 'd', 'H')
+
     # check topics in bag file, if exist topic "/zed/*", if had, zedTopic_change = True
     zedTopic_change = False
     bagtopics_list = bag.get_type_and_topic_info().topics
@@ -68,7 +70,6 @@ def extract_and_save(bag_file, output_dir):
         if '/zed/' in topic:
             zedTopic_change = True
             break
-
 
     bridge = CvBridge()
 
@@ -124,8 +125,8 @@ def extract_and_save(bag_file, output_dir):
                             f.write(bytearray("# .PCD v0.7 - Point Cloud Data file format\n", 'utf-8'))
                             f.write(bytearray("VERSION 0.7\n", 'utf-8'))
                             f.write(bytearray(f"FIELDS {' '.join(fields)}\n", 'utf-8'))
-                            f.write(bytearray("SIZE 4 4 4 4 4 4\n", 'utf-8'))
-                            f.write(bytearray("TYPE F F F F F F\n", 'utf-8'))
+                            f.write(bytearray("SIZE 4 4 4 4 8 2\n", 'utf-8'))
+                            f.write(bytearray("TYPE F F F F F U\n", 'utf-8'))
                             f.write(bytearray("COUNT 1 1 1 1 1 1\n", 'utf-8'))
                             f.write(bytearray(f"WIDTH {msg.width}\n", 'utf-8'))
                             f.write(bytearray("HEIGHT 1\n", 'utf-8'))
@@ -133,8 +134,9 @@ def extract_and_save(bag_file, output_dir):
                             f.write(bytearray(f"POINTS {msg.width}\n", 'utf-8'))
                             f.write(bytearray("DATA binary\n", 'utf-8'))
                             for point in pcl.read_points(msg, field_names=fields):
-                                for p in point:
-                                    f.write(struct.pack('f', p))
+                                for i, p in enumerate(point):
+                                    f.write(struct.pack(hesai_fieldtypecodes[i], p))
+                                    # f.write(struct.pack('f', float(p)))
                         elif topic in ['/radar_enhanced_pcl2', '/radar_pcl2']:
                             f.write(bytearray("# .PCD v0.7 - Point Cloud Data file format\n", 'utf-8'))
                             f.write(bytearray("VERSION 0.7\n", 'utf-8'))
@@ -178,6 +180,19 @@ def extract_and_save(bag_file, output_dir):
 
     bag.close()
 
+def get_frame_ids_from_bag(bag_file, output_dir):
+    frame_ids = {}
+    with rosbag.Bag(bag_file, 'r') as bag:
+        for topic, msg, t in bag.read_messages():
+            # Assuming the message has a header with frame_id
+            if hasattr(msg, 'header') and hasattr(msg.header, 'frame_id'):
+                if topic not in frame_ids:
+                    frame_ids[topic] = msg.header.frame_id
+    with open(os.path.join(output_dir, 'frame_ids.txt'), 'w') as f:
+        for topic, frame_id in frame_ids.items():
+            f.write(f"{topic}: {frame_id}\n")
+    return frame_ids
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Convert ROS bag to a structured folder of files for each sensor.')
@@ -187,3 +202,4 @@ if __name__ == '__main__':
 
     extract_and_save(args.bag_file, args.output_dir)
 
+    get_frame_ids_from_bag(args.bag_file, args.output_dir)
