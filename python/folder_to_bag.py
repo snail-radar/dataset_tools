@@ -30,21 +30,23 @@ topics = {
     '/hesai/pandar': ('xt32/timestamps.pcd', PointCloud2),
 }
 
-frame_ids = {
-    '/x36d/imu_raw': 'x36d',
-    '/x36d/gnss': 'x36d_gnss',
-    '/x36d/gnss_ins': 'x36d',
-    '/mti3dk/imu': 'mti3dk',
-    '/zed2i/zed_node/imu/data': 'zed2i_imu',
-    '/zed2i/zed_node/odom': 'zed2i_imu',
-    '/zed2i/zed_node/left_raw/image_raw_gray/compressed': 'zed2i_cam',
-    '/zed2i/zed_node/right_raw/image_raw_gray/compressed': 'zed2i_cam',
-    '/ars548': 'ars548',
-    '/radar_enhanced_pcl2': 'eagleg7',
-    '/radar_pcl2': 'eagleg7',
-    '/radar_trk': 'eagleg7',
-    '/hesai/pandar': 'xt32',
-}
+global frame_ids
+frame_ids = {}
+# frame_ids = {
+#     '/x36d/imu_raw': 'x36d',
+#     '/x36d/gnss': 'x36d_gnss',
+#     '/x36d/gnss_ins': 'x36d',
+#     '/mti3dk/imu': 'mti3dk',
+#     '/zed2i/zed_node/imu/data': 'zed2i_imu',
+#     '/zed2i/zed_node/odom': 'zed2i_imu',
+#     '/zed2i/zed_node/left_raw/image_raw_gray/compressed': 'zed2i_cam',
+#     '/zed2i/zed_node/right_raw/image_raw_gray/compressed': 'zed2i_cam',
+#     '/ars548': 'ars548',
+#     '/radar_enhanced_pcl2': 'eagleg7',
+#     '/radar_pcl2': 'eagleg7',
+#     '/radar_trk': 'eagleg7',
+#     '/hesai/pandar': 'xt32',
+# }
 
 PointCloud2fields = {
     '/ars548': 'x y z doppler intensity range_std azimuth_std elevation_std doppler_std',
@@ -52,6 +54,9 @@ PointCloud2fields = {
     '/radar_enhanced_pcl2': 'x y z Doppler Range Power Alpha Beta rangeAccu aziAccu eleAccu dopplerAccu recoveredSpeed dotFlags denoiseFlag historyFrameFlag dopplerCorrectionFlag',
     '/radar_pcl2': 'x y z Doppler Range Power Alpha Beta rangeAccu aziAccu eleAccu dopplerAccu recoveredSpeed dotFlags denoiseFlag historyFrameFlag dopplerCorrectionFlag',
 }
+
+hesai_fieldtypecodes = ('f', 'f', 'f', 'f', 'd', 'H')
+hesai_unpack_numbytes = (4, 4, 4, 4, 8, 2)
 
 global data_type
 data_type = 'binary'
@@ -71,11 +76,17 @@ def read_pcd_file(filename):
         
         while True:
             point_data = {}
-            for field in fields:
-                value_bytes = file.read(4)
+            for i, field in enumerate(fields):
+                if "xt32" in filename:
+                    value_bytes = file.read(hesai_unpack_numbytes[i])
+                else:
+                    value_bytes = file.read(4)
                 if not value_bytes:
                     break
-                value = struct.unpack('f', value_bytes)[0]
+                if "xt32" in filename:
+                    value = struct.unpack(hesai_fieldtypecodes[i], value_bytes)[0]
+                else:
+                    value = struct.unpack('f', value_bytes)[0]
                 point_data[field] = value
             if not point_data:
                 break
@@ -92,6 +103,10 @@ def create_point_cloud2_msg(fields, points, timestamp, topic='/ars548'):
     topic_fields = []
     offset = 0
     for i, field in enumerate(fields):
+        if i == 3 and (topic == '/hesai/pandar' or topic == '/ars548'):
+            offset += 4
+        if i == 4 and topic == '/hesai/pandar':
+            offset += 4
         if field == 'ring':
             topic_fields.append(PointField(field, offset, PointField.UINT16, 1))
             offset += 2
@@ -102,29 +117,10 @@ def create_point_cloud2_msg(fields, points, timestamp, topic='/ars548'):
             topic_fields.append(PointField(field, offset, PointField.FLOAT32, 1))
             offset += 4
 
-    if topic == '/hesai/pandar':
-        points = np.array(points, dtype=np.float32)
-        points[:, -1] = points[:, -1].astype(np.uint16)
-        points[:, -2] = points[:, -2].astype(np.float64)
-        fields_dtype = []
-        for i, field in enumerate(fields):
-            if field == 'ring':
-                dtype = np.uint16
-            elif field == 'timestamp':
-                dtype = np.float64
-            else:
-                dtype = np.float32
-            fields_dtype.append((field, dtype))
-        points_dtype = np.dtype(fields_dtype)
-        # points_dtype = np.dtype([(fields[i], np.float32) if fields[i] != 'ring' else (fields[i], np.uint16) for i in range(len(fields))])
-        structured_points = np.zeros(points.shape[0], dtype=points_dtype)
-        for i, field in enumerate(fields):
-            structured_points[field] = points[:, i]
-        points = structured_points
-
     # Pass the point data directly
     cloud2_msg = point_cloud2.create_cloud(header, topic_fields, points)
     cloud2_msg.is_dense = True
+    cloud2_msg.height = 1
 
     return cloud2_msg
 
@@ -183,7 +179,8 @@ def write_bag(input_folder, output_bag):
                     with open(image_path, 'rb') as img:
                         msg = CompressedImage()
                         msg.header.stamp = timestamp
-                        msg.format = 'jpeg'
+                        msg.header.frame_id = frame_ids[topic]
+                        msg.format = 'mono8; jpeg compressed '
                         msg.data = img.read()
                         bag.write(topic, msg, msg.header.stamp)
         elif msg_type == PointCloud:
@@ -228,11 +225,29 @@ def write_bag(input_folder, output_bag):
 
     bag.close()
 
+def load_frame_ids_from_txt(txt_file):
+    global frame_ids
+    frame_ids = {}
+    with open(txt_file, 'r') as f:
+        for line in f:
+            parts = line.strip().split(": ")
+            if len(parts) == 2:
+                frame_ids[parts[0]] = parts[1]
+                print(f"Topic: {parts[0]}, Frame ID: {parts[1]}")
+    return frame_ids
+
 if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description='Convert a folder of snail radar format to a ROS bag.')
     parser.add_argument('input_folder', help='Path to the input folder.')
     parser.add_argument('output_bag', help='Path to the output bag file.')
     args = parser.parse_args()
-
+    if not os.path.exists(args.input_folder):
+        print(f"Folder not found: {args.input_folder}")
+        exit(1)
+    if os.path.exists(args.output_bag):
+        os.remove(args.output_bag)
+    
+    load_frame_ids_from_txt(args.input_folder+'/frame_ids.txt')
     write_bag(args.input_folder, args.output_bag)
+
