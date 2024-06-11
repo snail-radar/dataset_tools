@@ -95,11 +95,12 @@ def compare_fields(msg1, msg2):
             if len(value1) != len(value2):
                 return False
             for v1, v2 in zip(value1, value2):
-                if isinstance(v1, float) :
+                if isinstance(v1, float):
                     if not np.isclose(v1, v2, atol=1e-6):
                         return False
                 elif v1 != v2:
                     if field=="fields" and v1.name==v2.name and v1.datatype==v2.datatype and v1.count==v2.count:
+                        # ignore the offset of each field.
                         continue
                     return False
         elif hasattr(value1, '__slots__'):  # Check if it's a ROS message
