@@ -166,6 +166,7 @@ def extract_and_save(bag_file, output_dir):
         elif msg_type == PointCloud:
             # Save PointCloud data directly as binary
             file_path = os.path.dirname(file_path)
+            times_path = os.path.join(file_path, 'times.txt')
             for _, msg, t in bag.read_messages(topics=[topic]):
                 pcd_path = os.path.join(file_path, f'{t.secs}.{t.nsecs:09d}.bin')
                 with open(pcd_path, 'wb') as f:
@@ -176,6 +177,8 @@ def extract_and_save(bag_file, output_dir):
                         # print('channels: ', channel.name, len(channel.values))
                         for data in channel.values:
                             f.write(struct.pack('f', data))
+                with open(times_path, 'a') as f:
+                    f.write(f'{t.secs}.{t.nsecs:09d}\n')
                     
 
     bag.close()

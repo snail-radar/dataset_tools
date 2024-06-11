@@ -164,6 +164,8 @@ def write_bag(input_folder, output_bag):
         elif msg_type == PointCloud2:
             file_path = os.path.dirname(file_path)
             for _, _, files in os.walk(file_path):
+                files = [f for f in files if f.endswith('.pcd')]
+                files.sort(key=lambda x: float(x.split('.')[0]) + float(x.split('.')[1])/1e9)
                 for file in files:
                     if file.endswith('.pcd'):
                         fields, points = read_pcd_file(os.path.join(file_path, file))
@@ -186,6 +188,8 @@ def write_bag(input_folder, output_bag):
         elif msg_type == PointCloud:
             file_path = os.path.dirname(file_path)
             for _, _, files in os.walk(file_path):
+                files = [f for f in files if f.endswith('.bin')]
+                files.sort(key=lambda x: float(x.split('.')[0]) + float(x.split('.')[1])/1e9)
                 for file in files:
                     if file.endswith('.bin'):
                         with open(os.path.join(file_path, file), 'rb') as f:
