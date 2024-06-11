@@ -179,9 +179,10 @@ def extract_and_save(bag_file, output_dir):
                             f.write(struct.pack('f', data))
                 with open(times_path, 'a') as f:
                     f.write(f'{t.secs}.{t.nsecs:09d}\n')
-                    
 
     bag.close()
+    get_frame_ids_from_bag(bag_file, output_dir)
+
 
 def get_frame_ids_from_bag(bag_file, output_dir):
     frame_ids = {}
@@ -205,4 +206,3 @@ if __name__ == '__main__':
 
     extract_and_save(args.bag_file, args.output_dir)
 
-    get_frame_ids_from_bag(args.bag_file, args.output_dir)
