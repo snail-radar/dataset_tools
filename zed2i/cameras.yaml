@@ -1,0 +1,45 @@
+%YAML:1.0
+# Zed2i camera calibration parameters can be downloaded from https://www.stereolabs.com/developers/calib.
+# The serial number is provided in imu.txt.
+# Per [discussion](https://community.stereolabs.com/t/zed-calibration-multiple-distortion-coefficients-what-are-these/3337),
+# The latest zed camera distortion is expressed with the [8 param polynomial distortion model]
+# (https://docs.opencv.org/4.x/d9/d0c/group__calib3d.html#ga7dfb72c9cf9780a347fbe3d1c47e5d5a)
+#  which extends the 5 param radial tangential distortion model.
+# Fortunately, the zed calibration also provides the legacy radial tangential distortion model for both cameras at different resolutions.
+# The below uses these legacy parameters for the VGA resolution 1280 x 720.
+
+# The zed right camera extrinsic parameters refer to https://community.stereolabs.com/t/baseline-value-in-conf-calibration-file/283
+# and https://github.com/stereolabs/zed-ros-wrapper/issues/39
+# so the pose of the right camera wrt the left camera is 
+# L_p_R = [-Baseline, TY, TZ]
+# L_R_R = Rodrigues([RX_HD, CV_HD, RZ_HD])
+
+# The zed camera IMU relative pose refers to https://stereolabs.github.io/zed-open-capture/
+# and https://www.stereolabs.com/docs/positional-tracking/coordinate-frames/
+
+cameras:
+     - {T_SC:
+        [0.00213988525816143, -0.00279617950045348, 0.999993801116428, 0.00195015516864582,
+         -0.999996185302461, 0.00174051634228454,  0.00214475718636299, 0.0230045884601614,
+         -0.00174650267910434, -0.999994575976822, -0.00279244432861198, -0.000185414158255642,
+         0.0, 0.0, 0.0, 1.0],
+        image_dimension: [1280, 720],
+        distortion_coefficients: [-0.0567891, 0.032141, 0.000169392, -0.000430803, -0.0128658],
+        distortion_type: radialtangential,
+        focal_length: [533.0399780273438, 533.60498046875],
+        principal_point: [659.02001953125, 364.9825134277344],
+        image_delay: 0.0,
+        image_readout_time: 0.0144} # 20 us * 720 = 14400 us
+     - {T_SC:
+        [0.00947865469315683, -0.00452849291699096, 0.999944822406271, 0.00255798966385182,
+         -0.99995428261351, 0.00121719241632921, 0.00948425671953687, -0.0968568086474203,
+         -0.00126007464395793, -0.999989005536822, -0.00451674853952054, -0.000440310918484903,
+         0.0, 0.0, 0.0, 1.0],
+        image_dimension: [1280, 720],
+        distortion_coefficients: [-0.0546932, 0.0277079, 0.000347954, -2.13118e-05, -0.0109198],
+        distortion_type: radialtangential,
+        focal_length: [532.7000122070312, 533.0250244140625],
+        principal_point: [646.2999877929688, 374.3504943847656],
+        image_delay: 0.0,
+        image_readout_time: 0.0144}
+
