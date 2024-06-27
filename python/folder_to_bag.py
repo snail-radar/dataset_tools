@@ -48,13 +48,6 @@ frame_ids = {}
 #     '/hesai/pandar': 'xt32',
 # }
 
-PointCloud2fields = {
-    '/ars548': 'x y z doppler intensity range_std azimuth_std elevation_std doppler_std',
-    '/hesai/pandar': 'x y z intensity timestamp ring',
-    '/radar_enhanced_pcl2': 'x y z Doppler Range Power Alpha Beta rangeAccu aziAccu eleAccu dopplerAccu recoveredSpeed dotFlags denoiseFlag historyFrameFlag dopplerCorrectionFlag',
-    '/radar_pcl2': 'x y z Doppler Range Power Alpha Beta rangeAccu aziAccu eleAccu dopplerAccu recoveredSpeed dotFlags denoiseFlag historyFrameFlag dopplerCorrectionFlag',
-}
-
 hesai_fieldtypecodes = ('f', 'f', 'f', 'f', 'd', 'H')
 hesai_unpack_numbytes = (4, 4, 4, 4, 8, 2)
 
@@ -73,15 +66,17 @@ def read_pcd_file(filename):
             elif 'DATA' in line:
                 data_type = line.split()[1]
                 break
-        
+
         while True:
             point_data = {}
+            invaliddata = False
             for i, field in enumerate(fields):
                 if "xt32" in filename:
                     value_bytes = file.read(hesai_unpack_numbytes[i])
                 else:
                     value_bytes = file.read(4)
                 if not value_bytes:
+                    invaliddata = True
                     break
                 if "xt32" in filename:
                     value = struct.unpack(hesai_fieldtypecodes[i], value_bytes)[0]
@@ -90,6 +85,8 @@ def read_pcd_file(filename):
                 point_data[field] = value
             if not point_data:
                 break
+            if invaliddata:
+                print("Warn: invalid data {} at {} of {}".format(point_data, len(points), filename))
             points.append([point_data[field] for field in fields])
 
         return fields, points
@@ -128,6 +125,7 @@ def write_bag(input_folder, output_bag):
     bag = rosbag.Bag(output_bag, 'w')
 
     for topic, (subpath, msg_type) in topics.items():
+        print(f"Writing {topic} from {subpath}")
         file_path = os.path.join(input_folder, subpath)
 
         if msg_type in [Imu, NavSatFix, Odometry]:
@@ -152,6 +150,10 @@ def write_bag(input_folder, output_bag):
                         msg.latitude = float(parts[1])
                         msg.longitude = float(parts[2])
                         msg.altitude = float(parts[3])
+                        msg.position_covariance = [float(parts[4]), 0, 0, 0, float(parts[5]), 0, 0, 0, float(parts[6])]
+                        msg.status.status = int(parts[7])
+                        msg.status.service = int(parts[8])
+                        msg.position_covariance_type = int(parts[9])
                     elif msg_type == Odometry:
                         msg.pose.pose.position.x = float(parts[1])
                         msg.pose.pose.position.y = float(parts[2])

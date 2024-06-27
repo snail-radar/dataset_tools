@@ -36,6 +36,55 @@ from cv_bridge import CvBridge
 import cv2
 import struct
 
+def msgfields_to_pcdfields(msgfields):
+    """
+    Convert a list of message fields to PCD fields.
+    refer to https://docs.ros.org/en/noetic/api/sensor_msgs/html/msg/PointField.html
+    and https://pointclouds.org/documentation/tutorials/pcd_file_format.html
+    """
+    fields = []
+    sizes = []
+    types = []
+    counts = []
+    # ros msg data types
+    INT8    = 1
+    UINT8   = 2
+    INT16   = 3
+    UINT16  = 4
+    INT32   = 5
+    UINT32  = 6
+    FLOAT32 = 7
+    FLOAT64 = 8
+    for field in msgfields:
+        fields.append(field.name)
+        counts.append(1)
+        if field.datatype == INT8:
+            sizes.append(1)
+            types.append('I')
+        elif field.datatype == UINT8:
+            sizes.append(1)
+            types.append('U')
+        elif field.datatype == INT16:
+            sizes.append(2)
+            types.append('I')
+        elif field.datatype == UINT16:
+            sizes.append(2)
+            types.append('U')
+        elif field.datatype == INT32:
+            sizes.append(4)
+            types.append('I')
+        elif field.datatype == UINT32:
+            sizes.append(4)
+            types.append('U')
+        elif field.datatype == FLOAT32:
+            sizes.append(4)
+            types.append('F')
+        elif field.datatype == FLOAT64:
+            sizes.append(8)
+            types.append('F')
+    return fields, sizes, types, counts
+
+
 def extract_and_save(bag_file, output_dir):
     bag = rosbag.Bag(bag_file, 'r')
     topics = {
@@ -90,8 +139,9 @@ def extract_and_save(bag_file, output_dir):
                                 f'{msg.orientation.x} {msg.orientation.y} {msg.orientation.z} {msg.orientation.w}\n')
                     elif msg_type == NavSatFix:
                         f.write(f'{msg.header.stamp.secs}.{msg.header.stamp.nsecs:09d} '
-                                f'{msg.latitude} {msg.longitude} {msg.altitude} ')
-                        f.write(f'{msg.position_covariance[0]} {msg.position_covariance[4]} {msg.position_covariance[8]}\n')
+                                f'{msg.latitude:.9f} {msg.longitude:.9f} {msg.altitude:.3f} ')
+                        f.write(f'{msg.position_covariance[0]} {msg.position_covariance[4]} {msg.position_covariance[8]} ')
+                        f.write(f'{msg.status.status} {msg.status.service} {msg.position_covariance_type}\n')
                     elif msg_type == Odometry:
                         f.write(f'{msg.header.stamp.secs}.{msg.header.stamp.nsecs:09d} '
                                 f'{msg.pose.pose.position.x} {msg.pose.pose.position.y} {msg.pose.pose.position.z} '
@@ -99,10 +149,11 @@ def extract_and_save(bag_file, output_dir):
         elif msg_type == PointCloud2:
             file_path = os.path.dirname(file_path)
             times_path = os.path.join(file_path, 'times.txt')
-            fields = PointCloud2fields.get(topic, 'x y z').split()  # Use default fields if not specified
+            fields = PointCloud2fields.get(topic, 'x y z').split()  # Use default fields xyz if not specified
             with open(times_path, 'w') as f1:
                 for _, msg, _ in bag.read_messages(topics=[topic]):
                     timestamp = msg.header.stamp
+                    fieldnames, sizes, types, counts = msgfields_to_pcdfields(msg.fields)
                     f1.write(f'{timestamp.secs}.{timestamp.nsecs:09d}\n')
                     pcd_path = os.path.join(file_path, f'{timestamp.secs}.{timestamp.nsecs:09d}.pcd')
                     with open(pcd_path, 'wb') as f:
@@ -136,20 +187,19 @@ def extract_and_save(bag_file, output_dir):
                             for point in pcl.read_points(msg, field_names=fields):
                                 for i, p in enumerate(point):
                                     f.write(struct.pack(hesai_fieldtypecodes[i], p))
-                                    # f.write(struct.pack('f', float(p)))
                         elif topic in ['/radar_enhanced_pcl2', '/radar_pcl2']:
                             f.write(bytearray("# .PCD v0.7 - Point Cloud Data file format\n", 'utf-8'))
                             f.write(bytearray("VERSION 0.7\n", 'utf-8'))
-                            f.write(bytearray(f"FIELDS {' '.join(fields)}\n", 'utf-8'))
-                            f.write(bytearray("SIZE 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4 4\n", 'utf-8'))
-                            f.write(bytearray("TYPE F F F F F F F F F F F F F F F F F\n", 'utf-8'))
-                            f.write(bytearray("COUNT 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1 1\n", 'utf-8'))
+                            f.write(bytearray(f"FIELDS {' '.join(fieldnames)}\n", 'utf-8'))
+                            f.write(bytearray(f"SIZE {' '.join(str(s) for s in sizes)}\n", 'utf-8'))
+                            f.write(bytearray(f"TYPE {' '.join(types)}\n", 'utf-8'))
+                            f.write(bytearray(f"COUNT {' '.join(str(c) for c in counts)}\n", 'utf-8'))
                             f.write(bytearray(f"WIDTH {msg.width}\n", 'utf-8'))
                             f.write(bytearray("HEIGHT 1\n", 'utf-8'))
                             f.write(bytearray("VIEWPOINT 0 0 0 1 0 0 0\n", 'utf-8'))
                             f.write(bytearray(f"POINTS {msg.width}\n", 'utf-8'))
                             f.write(bytearray("DATA binary\n", 'utf-8'))
-                            for point in pcl.read_points(msg, field_names=fields):
+                            for point in pcl.read_points(msg, field_names=fieldnames):
                                 for p in point:
                                     f.write(struct.pack('f', p))
         elif msg_type == CompressedImage:
