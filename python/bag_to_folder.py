@@ -123,6 +123,8 @@ def extract_and_save(bag_file, output_dir):
     bridge = CvBridge()
 
     for topic0, (subpath, msg_type) in topics.items():
+        if topic0 not in bagtopics_list:
+            continue
         file_path = os.path.join(output_dir, subpath)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         topic = topic0
