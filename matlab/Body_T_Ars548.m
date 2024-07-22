@@ -1,19 +1,73 @@
 function T = Body_T_Ars548(date)
+% input: date: e.g., 20231105, for morning sequences, use 20231105.0, for afternoon/evening sequences, use 20231105.5.
 p_body_ars548 = [0; 0; 0.07];
 R_body_ars548 = eye(3); % nominal
+T_body_x36d = Body_T_X36d();
+R_body_x36d = T_body_x36d(1:3, 1:3);
 if date < 20231104 % no ars548
     T = [];
-elseif date < 20231105.5 % that morning tilted backward
-    % to convert the ars548 frame to the body frame,
-    % first rotate about the ars548 frame y-axis by 5 degree,
-    % then rotate about the new z-axis by 3 degree.
-    R_body_ars548 = R3d(3) * R2d(5);
+elseif date < 20231105.5 % that morning the ars548 tilted backward.
+    % The relative rot of ars548 relative to x36d is estimated using
+    % the ars548 ego velocity estimated from ars548 messages and INS solution from inspvaxa data,
+    % of 20231105/data5.
+    % rpy_deg = [0.674384111980923	-14.1769453294823	-0.818739165044029];
+    R_x36d_ars548 = [0.969444991668881	0.0114058478618076	-0.245043495654703;
+        -0.0138540154094491	0.999869833844876	-0.00826931823403215;
+        0.244917280699337	0.0114114855112841	0.969476819533747];
+    R_body_ars548 = R_body_x36d * R_x36d_ars548;
     T = [R_body_ars548 p_body_ars548; 0, 0, 0, 1];
-else % that afternoon corrected pitch somewhat
-    % to convert the ars548 frame to the body frame,
-    % first rotate about the ars548 frame x-axis by 1 degree,
-    % then rotate about the new z-axis by 3 degree.
-    R_body_ars548 = R3d(3) * R2d(1);
+elseif date < 20231109 % 20231105_aft, that afternoon we corrected the ars548 pitch.
+    % data used, 20231105_aft/data4
+    % rpy_deg = [-0.0703878699021693	0.568791014169938	-2.00986017288852];
+    R_x36d_ars548 = [
+        0.99933556159366	0.0350592694139522	0.00996408362298175;
+        -0.0350697556851544	0.999384479850069	0.000879585692152998;
+        -0.00992711289698246	-0.00122843923992157	0.999949970431803];
+    R_body_ars548 = R_body_x36d * R_x36d_ars548;
+    T = [R_body_ars548 p_body_ars548; 0, 0, 0, 1];
+elseif date < 20231201 % 20231109
+    % data used 20231109/data4
+    % rpy_deg = [-0.866252991044066	0.573621757241377	-2.77630247184018];
+    R_x36d_ars548 = [
+        0.998776199461003	0.0482799447996405	0.0107308117297966;
+        -0.0484342320906938	0.998719432121254	0.0146157813744353;
+        -0.0100114210790212	-0.0151176331991534	0.999835600793668];
+    R_body_ars548 = R_body_x36d * R_x36d_ars548;
+    T = [R_body_ars548 p_body_ars548; 0, 0, 0, 1];
+elseif date < 20231208 % 20231201
+    % data used 20231201/data3
+    % rpy_deg = [-0.151799610382553	-1.07585495303886	-2.47675511360428];
+    R_x36d_ars548 = [
+        0.99888971377047	0.0432636174020788	-0.0186440106424698;
+        -0.0432064520575256	0.999060179650875	0.00345831412160802;
+        0.0187761078008922	-0.00264893285107753	0.999820204302054];
+    R_body_ars548 = R_body_x36d * R_x36d_ars548;
+    T = [R_body_ars548 p_body_ars548; 0, 0, 0, 1];
+elseif date < 20231213 % 20231208
+    % data used 20231208/data4
+    % rpy_deg = [-0.146071076028	-0.980720804015261	-2.55196229363483];
+    R_x36d_ars548 = [
+        0.998861908053375	0.0445688670331839	-0.0169854270287433;
+        -0.0445188967507348	0.999003062288094	0.00330898339477966;
+        0.0171159712569224	-0.0025490449952668	0.999850261737998];
+    R_body_ars548 = R_body_x36d * R_x36d_ars548;
+    T = [R_body_ars548 p_body_ars548; 0, 0, 0, 1];
+elseif date < 20240113 % 20231213
+    % data used 20231213/data2
+    % rpy_deg = [-0.356337923979007	-0.85687008872306	-2.23655746610501];
+    R_x36d_ars548 = [
+        0.99912647794293	0.039117559886893	-0.0147002578838332;
+        -0.0390210149947843	0.999215265264576	0.00679809171902766;
+        0.0149546468407877	-0.00621853445265288	0.999868835581512];
+    R_body_ars548 = R_body_x36d * R_x36d_ars548;
+    T = [R_body_ars548 p_body_ars548; 0, 0, 0, 1];
+else % all the rest are zongmu sequences which have pretty consistent ars548 orientation.
+    % data used 20240116/data2
+    % rpy_deg = [-0.0989533797070895	-1.26001573157995	-2.83241723624821];
+    R_x36d_ars548 = [0.998536832685765	0.0494527313667313	-0.0218774114156895;
+    	-0.0494029253854064	0.998774972684787	0.00281156573196022;
+        0.0219896505939817	-0.0017266438170843	0.999756707388295];
+    R_body_ars548 = R_body_x36d * R_x36d_ars548;
     T = [R_body_ars548 p_body_ars548; 0, 0, 0, 1];
 end
 end
