@@ -36,5 +36,5 @@ Both are pretty easy to install and use.
 The matlab scripts require a MATLAB >=2007a installation.
 
 
-# Work with the raw data
-For those interested in how to process the raw data, the source code is available [here](https://bitbucket.org/BinliangWang/radar_data_preprocess/).
+<!--- # Work with the raw data
+For those interested in how to process the raw data, the source code is available [here](https://bitbucket.org/BinliangWang/radar_data_preprocess/). -->
