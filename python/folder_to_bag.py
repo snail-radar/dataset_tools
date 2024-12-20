@@ -26,7 +26,8 @@ topics = {
     '/ars548': ('ars548/points/timestamps.pcd', PointCloud2),
     '/radar_enhanced_pcl2': ('eagleg7/enhanced/timestamps.pcd', PointCloud2),
     '/radar_pcl2': ('eagleg7/pcl/timestamps.pcd', PointCloud2),
-    '/radar_trk': ('eagleg7/trk/timestamps.pcd', PointCloud),
+    # '/radar_trk': ('eagleg7/trk/timestamps.pcd', PointCloud),
+    '/radar_trk': ('eagleg7/trk/timestamps.pcd', PointCloud2),
     '/hesai/pandar': ('xt32/timestamps.pcd', PointCloud2),
 }
 
