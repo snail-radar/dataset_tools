@@ -130,6 +130,9 @@ def write_bag(input_folder, output_bag):
         file_path = os.path.join(input_folder, subpath)
 
         if msg_type in [Imu, NavSatFix, Odometry]:
+            if not os.path.isfile(file_path):
+                print(f'Warn: {file_path} does not exist for {input_folder}.')
+                continue
             with open(file_path, 'r') as f:
                 for line in f:
                     parts = line.split()
