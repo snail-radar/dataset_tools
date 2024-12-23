@@ -34,6 +34,7 @@ from nav_msgs.msg import Odometry
 import sensor_msgs.point_cloud2 as pcl
 from cv_bridge import CvBridge
 import cv2
+import shutil
 import struct
 
 def msgfields_to_pcdfields(msgfields):
@@ -85,7 +86,7 @@ def msgfields_to_pcdfields(msgfields):
     return fields, sizes, types, counts
 
 
-def extract_and_save_bin(bag_file, output_dir):
+def extract_and_save_bin(bag_file, output_dir, chosentopics=None):
     bag = rosbag.Bag(bag_file, 'r')
     topics = {
         '/x36d/imu_raw': ('x36d/imu.txt', Imu),
@@ -102,6 +103,9 @@ def extract_and_save_bin(bag_file, output_dir):
         '/radar_trk': ('eagleg7/trk/timestamps.pcd', PointCloud),
         '/hesai/pandar': ('xt32/timestamps.pcd', PointCloud2), # timestamps.pcd is in seconds, for example: 1716467261.084892076.pcd
     }
+    if chosentopics:
+        topics = chosentopics
+        print(f"Will only extract from {bag_file} the topics:\n{chosentopics}")
 
     PointCloud2fields = {
         '/ars548': 'x y z doppler intensity range_std azimuth_std elevation_std doppler_std',
@@ -126,7 +130,19 @@ def extract_and_save_bin(bag_file, output_dir):
         if topic0 not in bagtopics_list:
             continue
         file_path = os.path.join(output_dir, subpath)
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        upper_dir = os.path.dirname(file_path)
+        if os.path.isdir(upper_dir):
+            # Remove all contents of the directory
+            for item in os.listdir(upper_dir):
+                item_path = os.path.join(upper_dir, item)
+                if os.path.isfile(item_path) or os.path.islink(item_path):
+                    os.unlink(item_path)  # Remove files or symbolic links
+                elif os.path.isdir(item_path):
+                    shutil.rmtree(item_path)  # Remove directories
+        else:
+            # Create the directory if it doesn't exist
+            os.makedirs(upper_dir, exist_ok=True)
+
         topic = topic0
         if zedTopic_change and '/zed/' in topic0:
             topic = topic.replace('/zed/', '/zed2i/')
@@ -323,7 +339,19 @@ def extract_and_save_ascii(bag_file, output_dir):
         if topic0 not in bagtopics_list:
             continue
         file_path = os.path.join(output_dir, subpath)
-        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        upper_dir = os.path.dirname(file_path)
+        if os.path.isdir(upper_dir):
+            # Remove all contents of the directory
+            for item in os.listdir(upper_dir):
+                item_path = os.path.join(upper_dir, item)
+                if os.path.isfile(item_path) or os.path.islink(item_path):
+                    os.unlink(item_path)  # Remove files or symbolic links
+                elif os.path.isdir(item_path):
+                    shutil.rmtree(item_path)  # Remove directories
+        else:
+            # Create the directory if it doesn't exist
+            os.makedirs(upper_dir, exist_ok=True)
+
         topic = topic0
         if zedTopic_change and '/zed/' in topic0:
             topic = topic.replace('/zed/', '/zed2i/')
