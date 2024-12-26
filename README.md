@@ -16,24 +16,35 @@ python3 folder_to_bag.py
 python3 bag_to_folder.py
 ```
 
-# Visualization and Synchronization
+# Synced Visualization
 
 The snail_radar_SDK.py script enables visualization and synchronization of point clouds and stereo images. With this script, you can:
 
 - View multiple point clouds (e.g., ars548/points, eagleg7/enhanced, eagleg7/pcl, xt32) in separate Open3D windows.
 - Synchronized left and right images from ZED2i stereo cameras in OpenCV windows.
 
-Usage:
-To use the snail_radar_SDK.py script for visualization, run:
-python3 snail_radar_SDK.py <folder_path> <date> <seq>
+## Dependencies
+We recommend creating a virtual env with [miniconda](https://docs.anaconda.com/miniconda/install/#quick-command-line-install).
 
-- <folder_path>: Path to the root folder of your dataset.
-- <date>: The date of the dataset sequence (e.g., 20230920).
-- <seq>: The sequence number within the date folder (e.g., 1).
+```
+conda create -n test_env python=3.10
+conda activate test_env
+pip install numpy==1.24.4 opencv-python open3d
+```
+
+```
+sudo apt-get install xdotool
+```
+
+## Usage
+To use the snail_radar_SDK.py script for visualization, run:
+python3 snail_radar_SDK.py <folder_path>
+
+- <folder_path>: Path to a sequence of the dataset.
 
 Example:
 ```
-python3 snail_radar_SDK.py /path/to/dataset 20230920 1
+python3 snail_radar_SDK.py /path/to/dataset/20230920/data1
 ```
 
 This will:
@@ -42,7 +53,9 @@ This will:
 
 # Calibration
 
-The frame definitions and extrinsic calibrations are provided in the [matlab](./matlab) folder.
+The frame definitions are given [here](./matlab/readme.md).
+The frames used in sensor messages are listed in [table](./matlab/frame_ids.md).
+The extrinsic calibrations are provided in the [matlab scritps](./matlab) folder, and the ROS1 roslaunch files with name tf_static.launch in each sequence's folder.
 
 The intrinsic parameters of the zed2i stereo camera are in the topics of each bag,
 /zed2i/zed_node/left_raw/camera_info and /zed2i/zed_node/right_raw/camera_info.

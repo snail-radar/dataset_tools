@@ -2,13 +2,10 @@ import os
 import cv2
 import open3d as o3d
 import struct
-import time
+
 
 hesai_fieldtypecodes = ('f', 'f', 'f', 'f', 'd', 'H')
 hesai_unpack_numbytes = (4, 4, 4, 4, 8, 2)
-
-global data_type
-data_type = 'binary'
 
 def read_pcd_file(filename):
     """Read a PCD file and return a list of points with their attributes."""
@@ -45,8 +42,8 @@ def read_pcd_file(filename):
                 print("Warn: invalid data {} at {} of {}".format(point_data, len(points), filename))
             points.append([point_data[field] for field in fields])
 
-        return points
-    
+        return fields, points
+
 def initialize_visualizers(topics):
     """
     Initialize Open3D visualizers for multiple topics.
@@ -91,15 +88,9 @@ def load_image_timestamps_and_paths(folder_path, image_type):
     Load image timestamps and paths from a folder.
     """
     image_folder = os.path.join(folder_path, image_type)
-    times_file = os.path.join(image_folder, "times.txt")
-    if not os.path.exists(times_file):
-        print(f"Times file not found: {times_file}")
-        return [], []
-
-    with open(times_file, 'r') as f:
-        timestamps = [line.strip() for line in f]
-
-    image_paths = [os.path.join(image_folder, f"{timestamp}.jpg") for timestamp in timestamps]
+    image_bns = [fn for fn in os.listdir(image_folder) if fn.lower().endswith('.jpg')]
+    image_paths = [os.path.join(image_folder, bn) for bn in image_bns]
+    timestamps = [os.path.splitext(bn)[0] for bn in image_bns]
     return timestamps, image_paths
 
 def display_images(left_image_path, right_image_path):
@@ -118,17 +109,15 @@ def display_images(left_image_path, right_image_path):
 
     cv2.waitKey(1)  # Display for 50ms
 
-def synchronize_and_display(folder_path, topics, left_images, right_images):
+def synchronize_and_display(folder_path, query_topics, left_images, right_images):
     """
     Synchronize and display point clouds and images.
     """
-    # Initialize visualizers for point clouds
-    visualizers, point_clouds = initialize_visualizers(topics)
-
     # Load point cloud file paths and timestamps
     topic_files = {}
     topic_timestamps = {}
-    for topic in topics:
+    topics = []
+    for topic in query_topics:
         pcd_folder = os.path.join(folder_path, topic)
         if not os.path.exists(pcd_folder):
             print(f"Point cloud folder not found: {pcd_folder}")
@@ -138,6 +127,10 @@ def synchronize_and_display(folder_path, topics, left_images, right_images):
         files.sort(key=lambda x: float(x.split('.')[0]) + float(x.split('.')[1]) / 1e9)  # Sort by timestamp
         topic_files[topic] = [os.path.join(pcd_folder, f) for f in files]
         topic_timestamps[topic] = [float(f.split('.')[0]) + float(f.split('.')[1]) / 1e9 for f in files]
+        topics.append(topic)
+
+    # Initialize visualizers for point clouds
+    visualizers, point_clouds = initialize_visualizers(topics)
 
     # Load image paths and timestamps
     left_timestamps, left_paths = left_images
@@ -148,9 +141,8 @@ def synchronize_and_display(folder_path, topics, left_images, right_images):
     right_timestamps = [float(ts) for ts in right_timestamps]
 
     # Synchronize timestamps
-    all_timestamps = sorted(set(left_timestamps) | set(right_timestamps) | \
-                     set(topic_timestamps[topics[0]]) | set(topic_timestamps[topics[1]]) | \
-                     set(topic_timestamps[topics[2]]) | set(topic_timestamps[topics[3]]))
+    all_timestamps = sorted(set(left_timestamps) | set(right_timestamps) | 
+        set().union(*(set(topic_timestamps[topic]) for topic in topics)))
 
     print("Press 'Q' to quit.")
     for timestamp in all_timestamps:
@@ -161,7 +153,7 @@ def synchronize_and_display(folder_path, topics, left_images, right_images):
             if timestamp in topic_timestamps[topic]:
                 idx = topic_timestamps[topic].index(timestamp)
                 file_path = topic_files[topic][idx]
-                points = read_pcd_file(file_path)
+                _, points = read_pcd_file(file_path)
                 if topic == 'xt32':
                     # Downsample the point cloud for better performance
                     points = points[::10]
@@ -189,11 +181,10 @@ def synchronize_and_display(folder_path, topics, left_images, right_images):
     # Close OpenCV windows
     cv2.destroyAllWindows()
 
-def display_data(folder_path, date, seq):
+def display_data(target_folder):
     """
-    Display data (images and point clouds) from a specific folder based on date and sequence.
+    Display data (images and point clouds) from a specific folder
     """
-    target_folder = os.path.join(folder_path, f"{date}/data{seq}")
     if not os.path.exists(target_folder):
         print(f"Folder not found: {target_folder}")
         return
@@ -214,17 +205,13 @@ if __name__ == "__main__":
     import argparse
 
     parser = argparse.ArgumentParser(description="View synchronized point clouds and images.")
-    parser.add_argument("folder_path", help="Path to the data folder.")
-    parser.add_argument("date", help="Date (e.g., '20230920').")
-    parser.add_argument("seq", help="Sequence number (e.g., '1').")
+    parser.add_argument("folder_path", help="Path to the data folder. E.g., /data/snail/20231019/data2")
     args = parser.parse_args()
 
     folder_path = args.folder_path
-    date = args.date
-    seq = args.seq
 
     if not os.path.exists(folder_path):
         print(f"Folder not found: {folder_path}")
         exit(1)
 
-    display_data(folder_path, date, seq)
+    display_data(folder_path)

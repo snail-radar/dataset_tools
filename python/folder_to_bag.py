@@ -52,8 +52,6 @@ frame_ids = {}
 hesai_fieldtypecodes = ('f', 'f', 'f', 'f', 'd', 'H')
 hesai_unpack_numbytes = (4, 4, 4, 4, 8, 2)
 
-global data_type
-data_type = 'binary'
 
 def read_pcd_file(filename):
     """Read a PCD file and return a list of points with their attributes."""
