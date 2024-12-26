@@ -16,6 +16,30 @@ python3 folder_to_bag.py
 python3 bag_to_folder.py
 ```
 
+# Visualization and Synchronization
+
+The snail_radar_SDK.py script enables visualization and synchronization of point clouds and stereo images. With this script, you can:
+
+- View multiple point clouds (e.g., ars548/points, eagleg7/enhanced, eagleg7/pcl, xt32) in separate Open3D windows.
+- Synchronized left and right images from ZED2i stereo cameras in OpenCV windows.
+
+Usage:
+To use the snail_radar_SDK.py script for visualization, run:
+python3 snail_radar_SDK.py <folder_path> <date> <seq>
+
+- <folder_path>: Path to the root folder of your dataset.
+- <date>: The date of the dataset sequence (e.g., 20230920).
+- <seq>: The sequence number within the date folder (e.g., 1).
+
+Example:
+```
+python3 snail_radar_SDK.py /path/to/dataset 20230920 1
+```
+
+This will:
+1. Display point clouds from the specified sequence in multiple Open3D windows.
+2. Show the left and right ZED2i stereo images in synchronized OpenCV windows.
+
 # Calibration
 
 The frame definitions and extrinsic calibrations are provided in the [matlab](./matlab) folder.
