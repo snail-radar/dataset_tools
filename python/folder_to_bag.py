@@ -26,7 +26,8 @@ topics = {
     '/ars548': ('ars548/points/timestamps.pcd', PointCloud2),
     '/radar_enhanced_pcl2': ('eagleg7/enhanced/timestamps.pcd', PointCloud2),
     '/radar_pcl2': ('eagleg7/pcl/timestamps.pcd', PointCloud2),
-    '/radar_trk': ('eagleg7/trk/timestamps.pcd', PointCloud),
+    # '/radar_trk': ('eagleg7/trk/timestamps.pcd', PointCloud),
+    '/radar_trk': ('eagleg7/trk/timestamps.pcd', PointCloud2),
     '/hesai/pandar': ('xt32/timestamps.pcd', PointCloud2),
 }
 
@@ -51,8 +52,6 @@ frame_ids = {}
 hesai_fieldtypecodes = ('f', 'f', 'f', 'f', 'd', 'H')
 hesai_unpack_numbytes = (4, 4, 4, 4, 8, 2)
 
-global data_type
-data_type = 'binary'
 
 def read_pcd_file(filename):
     """Read a PCD file and return a list of points with their attributes."""
@@ -129,6 +128,9 @@ def write_bag(input_folder, output_bag):
         file_path = os.path.join(input_folder, subpath)
 
         if msg_type in [Imu, NavSatFix, Odometry]:
+            if not os.path.isfile(file_path):
+                print(f'Warn: {file_path} does not exist for {input_folder}.')
+                continue
             with open(file_path, 'r') as f:
                 for line in f:
                     parts = line.split()
