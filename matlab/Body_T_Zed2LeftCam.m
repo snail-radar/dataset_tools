@@ -1,4 +1,5 @@
-function T = Body_T_Zed2LeftCam(data)
+function T = Body_T_Zed2LeftCam(date)
+% date is like 20231109 for Nov 9 2023.
 % A. manually measured
 R_body_leftcam = [0, 0, 1; -1, 0, 0; 0, -1, 0];
 p_body_leftcam = [0.125; 0.07; -0.195];
@@ -7,8 +8,7 @@ T = [R_body_leftcam p_body_leftcam; 0, 0, 0, 1];
 % B. calculated by Direct_visual_lidar_calib 
 Body_T_xt32 = Body_T_Xt32();
 
-if data > 20231200
-    % SUV platform: fill in your real translation (m) and quaternion (qx,qy,qz,qw)
+if date > 20231200 % SUV platform
     tx = 0.0695283917427731; 
     ty = -0.008381612991474873;
     tz = -0.17223038663727022;
@@ -16,8 +16,7 @@ if data > 20231200
     qy = 0.7097335839994078;
     qz = -0.7039714840647372;
     qw = -0.017799861603211602;
-else  
-    % Other platforms: fill in your real translation & quaternion
+else % handheld or ebike
     tx = 0.07493894778041606;
     ty = -0.16471796028449764;
     tz = -0.09812580091216104;
@@ -31,9 +30,7 @@ xt32_T_leftcam = eye(4);
 xt32_T_leftcam(1:3,1:3) = quat2rotm([qw, qx, qy, qz]);
 
 % use manually measured translation
-xt32_T_leftcam(:,4) = inv(Body_T_xt32) * T(:,4);
+xt32_T_leftcam(1:3, 4) = Body_T_xt32(1:3, 1:3)' * p_body_leftcam;
 
-% invert to init Body_T_Zed2LeftCam
 T = Body_T_xt32 * xt32_T_leftcam;
-
 end
