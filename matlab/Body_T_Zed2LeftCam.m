@@ -8,14 +8,17 @@ T = [R_body_leftcam p_body_leftcam; 0, 0, 0, 1];
 % B. calculated by Direct_visual_lidar_calib 
 Body_T_xt32 = Body_T_Xt32();
 
-% Apr 22 data - calibrated by “Direct_visual_lidar_calib”
-tx = 0.16766995495366466,
-ty = 0.1323746871838674,
-tz = -0.1604850280896764,
-qx = 0.018921549882585903,
-qy = 0.7149261548397216,
-qz = -0.6986643622889027,
-qw = -0.019765549412358693
+% Apr 22 data - calibrated by "Direct_visual_lidar_calib"
+% the results obtained for the current rig whose extrinsics are expected to be very close to that of the SUV seqs as they were collected at last. 
+% Moreover, note that the SUV extrinsics are obtained by direct visual lidar calib using multiple static subseqs \\
+% and the ebike extrinsics are obtained by dvlc using a static ebike subseq.
+tx = 0.16766995495366466;
+ty = 0.1323746871838674;
+tz = -0.1604850280896764;
+qx = 0.018921549882585903;
+qy = 0.7149261548397216;
+qz = -0.6986643622889027;
+qw = -0.019765549412358693;
 
 if date > 20231200 % SUV platform
     tx = 0.0695283917427731; 
