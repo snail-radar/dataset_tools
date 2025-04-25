@@ -1,157 +1,150 @@
 #!/usr/bin/env python3
 import numpy as np
 import rosbag
-from PIL import Image, ImageDraw
 import sensor_msgs.point_cloud2 as pc2
 from scipy.spatial.transform import Rotation
 import cv2
-import matplotlib.pyplot as plt
-import rospy
 import argparse
+import tkinter as tk
+import matplotlib.pyplot as plt
 
 class BagProjector:
-    def __init__(self, bag_path):
+    def __init__(self, bag_path, gt_pose_file, dist_coeffs):
+        # Load ROS bag and distortion coefficients
         self.bag = rosbag.Bag(bag_path)
+        self.dist_coeffs = dist_coeffs
+        # Load ground truth poses from CSV: time,x,y,z,qx,qy,qz,qw
+        data = np.loadtxt(gt_pose_file, delimiter=',')
+        # Separate times and pose arrays for fast interpolation
+        self.times = data[:, 0]
+        self.poses = data[:, 1:8]  # [x,y,z,qx,qy,qz,qw]
+        # Precompute 4x4 matrices for each pose
+        self.T_mats = np.array([self.quat_to_mat(p) for p in self.poses])
 
-    def quaternion_to_matrix(self, xyzqxqyqzqw):
-        """
-        Convert xyz + quaternion to a 4x4 transformation matrix.
-        :param xyzqxqyqzqw: List containing translation and quaternion
-        :return: 4x4 transformation matrix
-        """
-        translation = np.array(xyzqxqyqzqw[:3])
-        quaternion = xyzqxqyqzqw[3:]
-        rot = Rotation.from_quat(quaternion).as_matrix()
-
+    def quat_to_mat(self, xyzqxqyqzqw):
+        # Convert translation+quaternion to 4x4 transform
+        arr = np.asarray(xyzqxqyqzqw, dtype=float).flatten()
+        # Expect at least 7 elements: x,y,z,qx,qy,qz,qw
+        if arr.size < 7:
+            raise ValueError(f"Pose array too short, expected >=7 elements, got {arr.size}")
+        # Translation and quaternion (only first four quaternion components)
+        trans = arr[0:3]
+        quat = arr[3:7]
+        # Build rotation matrix
+        R = Rotation.from_quat(quat).as_matrix()
         T = np.eye(4)
-        T[:3, :3] = rot
-        T[:3, 3] = translation
+        T[:3, :3] = R
+        T[:3, 3] = trans
         return T
 
-    def extract_data(self, lidar_topic, image_topic, max_duration=1.0):
-        """
-        Extract synchronized LiDAR and image data from the bag.
-        :param lidar_topic: LiDAR topic name
-        :param image_topic: Image topic name
-        :param max_duration: Maximum duration for synchronization
-        :return: First LiDAR and image messages
-        """
-        start_time = None
-        for topic, msg, t in self.bag.read_messages(topics=[lidar_topic, image_topic]):
-            start_time = t.to_sec()
-            break
+    def interp_mat(self, t):
+        # Linear interpolate between two closest poses
+        idx = np.searchsorted(self.times, t)
+        if idx == 0 or idx >= len(self.times):
+            return None
+        t1, t2 = self.times[idx-1], self.times[idx]
+        alpha = (t - t1) / (t2 - t1)
+        return (1 - alpha) * self.T_mats[idx-1] + alpha * self.T_mats[idx]
 
-        lidar_msgs = []
-        image_msgs = []
-        for topic, msg, t in self.bag.read_messages(
-                topics=[lidar_topic, image_topic],
-                start_time=rospy.Time.from_sec(start_time),
-                end_time=rospy.Time.from_sec(start_time + max_duration)):
+    def ros_to_image(self, img_msg, topic):
+        # Convert ROS Image or CompressedImage to BGR numpy array
+        if 'compressed' in topic:
+            arr = np.frombuffer(img_msg.data, np.uint8)
+            return cv2.imdecode(arr, cv2.IMREAD_COLOR)
+        raw = np.frombuffer(img_msg.data, np.uint8).reshape(img_msg.height, img_msg.width, 4)
+        return cv2.cvtColor(raw, cv2.COLOR_BGRA2BGR)
 
-            if topic == lidar_topic:
-                lidar_msgs.append(msg)
-            elif topic == image_topic:
-                image_msgs.append(msg)
+    def project(self, pc_msg, img, T_cam_l, K):
+        # Project point cloud into the image
+        points = np.array(list(pc2.read_points(pc_msg, field_names=('x','y','z'), skip_nans=True)))
+        # Transform to camera frame and filter
+        pts_cam = (T_cam_l @ np.hstack([points, np.ones((len(points),1))]).T).T[:, :3]
+        valid_cam = pts_cam[:, 2] > 0
+        pts_cam = pts_cam[valid_cam]
+        # Project with distortion
+        pts2d, _ = cv2.projectPoints(pts_cam, np.zeros(3), np.zeros(3), K, self.dist_coeffs)
+        pts2d = pts2d.reshape(-1, 2).astype(int)
+        h, w = img.shape[:2]
+        valid2d = (pts2d[:,0]>=0)&(pts2d[:,0]<w)&(pts2d[:,1]>=0)&(pts2d[:,1]<h)
+        return pts2d[valid2d], pts_cam[valid2d]
 
-        return lidar_msgs[0], image_msgs[0]
+    def visualize(self, img, pts2d, pts_cam):
+        # Display projection with small circles; press any key for next, 'q' to exit
+        # Center window
+        root = tk.Tk(); sw, sh = root.winfo_screenwidth(), root.winfo_screenheight(); root.withdraw()
+        vis = img.copy()
+        depths = pts_cam[:,2]
+        nd = (depths - depths.min())/(depths.max()-depths.min())
+        colors = (plt.cm.turbo(nd)[:,:3]*255).astype(int)
+        for (x,y),c in zip(pts2d, colors):
+            cv2.circle(vis, (x,y), 1, (int(c[2]),int(c[1]),int(c[0])), 1)
+        win = 'Projection'
+        cv2.namedWindow(win, cv2.WINDOW_NORMAL)
+        H, W = vis.shape[:2]
+        scale = min(sw*0.8/W, sh*0.8/H, 1)
+        cv2.resizeWindow(win, int(W*scale), int(H*scale))
+        cv2.moveWindow(win, int((sw-W*scale)/2), int((sh-H*scale)/2))
+        cv2.imshow(win, vis)
+        k = cv2.waitKey(0) & 0xFF
+        cv2.destroyWindow(win)
+        if k == ord('q'): exit(0)
 
-    def ros_img_to_numpy(self, img_msg, image_topic):
-        """
-        Convert ROS image message to numpy array.
-        :param img_msg: ROS image message
-        :param image_topic: Image topic name
-        :return: Numpy array of the image
-        """
-        if 'compressed' in image_topic:
-            image = np.frombuffer(img_msg.data, dtype=np.uint8)
-            image = cv2.imdecode(image, cv2.IMREAD_COLOR)
-        else:
-            image_data = np.frombuffer(img_msg.data, dtype=np.uint8).reshape(img_msg.height, img_msg.width, 4)
-            image = cv2.cvtColor(image_data, cv2.COLOR_BGRA2BGR)
-        return image
-
-    def project_lidar_to_image(self, pc_msg, img_msg, T_cam_lidar, K, image_topic):
-        """
-        Project LiDAR points onto the image.
-        :param pc_msg: LiDAR point cloud message
-        :param img_msg: Image message
-        :param T_cam_lidar: Transformation matrix from LiDAR to camera
-        :param K: Camera intrinsic matrix
-        :param image_topic: Image topic name
-        :return: Projected points, 3D points, and image
-        """
-        points = np.array(list(pc2.read_points(pc_msg, field_names=("x", "y", "z"), skip_nans=True)))
-        img = self.ros_img_to_numpy(img_msg, image_topic)
-        height, width = img.shape[:2]
-
-        points_homo = np.column_stack([points, np.ones(len(points))])
-        points_cam = (T_cam_lidar @ points_homo.T).T[:, :3]
-
-        valid = points_cam[:, 2] > 0
-        points_cam = points_cam[valid]
-
-        projected = (K @ points_cam.T).T
-        projected = (projected[:, :2] / projected[:, 2:]).astype(int)
-
-        in_frame = (projected[:, 0] >= 0) & (projected[:, 0] < width) & \
-                   (projected[:, 1] >= 0) & (projected[:, 1] < height)
-
-        return projected[in_frame], points_cam[in_frame], img
-
-    def visualize(self, projected_points, points_3d, image):
-        """
-        Visualize the projection result.
-        :param projected_points: Projected 2D points
-        :param points_3d: 3D points in camera frame
-        :param image: Image to overlay the points
-        """
-        depths = points_3d[:, 2]
-        norm_depths = (depths - depths.min()) / (depths.max() - depths.min())
-        colors = (plt.cm.turbo(norm_depths)[:, :3] * 255).astype(int)
-
-        img_pil = Image.fromarray(image)
-        draw = ImageDraw.Draw(img_pil)
-
-        for pt, color in zip(projected_points, colors):
-            draw.ellipse([(pt[0] - 1, pt[1] - 1), (pt[0] + 1, pt[1] + 1)], fill=tuple(color))
-
-        img_pil.show()
-
-
-if __name__ == "__main__":
-    # Parse input arguments
-    parser = argparse.ArgumentParser(description="LiDAR to Camera Projection")
-    parser.add_argument("--bag_path", type=str, required=True, help="Path to the ROS bag file")
-    parser.add_argument("--lidar_topic", type=str, required=True, help="LiDAR topic name")
-    parser.add_argument("--image_topic", type=str, required=True, help="Image topic name")
-    parser.add_argument("--date_input", type=str, required=True, help="Date input in YYYYMMDD format")
+if __name__ == '__main__':
+    parser = argparse.ArgumentParser(description='LiDAR to Camera Projection')
+    parser.add_argument('--bag_path', required=True)
+    parser.add_argument('--lidar_topic', required=True)
+    parser.add_argument('--image_topic', required=True)
+    parser.add_argument('--gt_pose_file', required=True)
+    parser.add_argument('--date_input', required=True)
+    parser.add_argument('--gap_time', type=float, default=0.0, help='Seconds to skip from bag start time')
     args = parser.parse_args()
 
-    # Split date for configuration selection
-    SPLIT_DATE = 20231207
+    # Select calibration based on date
+    split = 20231207
+    d = int(args.date_input)
+    if d > split:
+        extr = [0.0695283917427731, -0.008381612991474873, -0.17223038663727022,
+                0.019635536507920586, 0.7097335839994078, -0.7039714840647372, -0.017799861603211602]
+        K = np.array([[266.52, 0, 345.01], [0, 266.80, 189.99], [0, 0, 1]])
+    else:
+        extr =  [0.07493894778041606, -0.16471796028449764, -0.09812580091216104,
+                 -0.007712187968660904, -0.698602566500298,0.7154675436354508, 0.0010817764035590007]
+        K = np.array([[533.04, 0, 659.02], [0, 533.60, 364.98], [0, 0, 1]])
+    dist = np.array([-0.0567891, 0.032141, 0.000169392, -0.000430803, -0.0128658])
 
-    if int(args.date_input) > 20231207:  # SUV platform
-        extrinsics = [0.0695283917427731, -0.008381612991474873, -0.17223038663727022,
-                       0.019635536507920586, 0.7097335839994078, -0.7039714840647372, -0.017799861603211602]
-        intrinsics = np.array([[266.52, 0, 345.01],
-                                [0, 266.8025, 189.99125],
-                                [0, 0, 1]])
-    else:  # Handheld/ebike platform
-        extrinsics = [0.16766995495366466, 0.1323746871838674, -0.1604850280896764,
-                       0.018921549882585903, 0.7149261548397216, -0.6986643622889027, -0.019765549412358693]
-        intrinsics = np.array([
-                        [533.0399780273438, 0, 659.02001953125],
-                        [0, 533.60498046875, 364.9825134277344],
-                        [0, 0, 1]])
+    proj = BagProjector(args.bag_path, args.gt_pose_file, dist)
+    T_lc = proj.quat_to_mat(extr)
+    T_cl = np.linalg.inv(T_lc)
 
-    # Initialize the projector
-    projector = BagProjector(args.bag_path)
-    T_lidar_cam = projector.quaternion_to_matrix(extrinsics)
-    T_cam_lidar = np.linalg.inv(T_lidar_cam)
+    bag_start = proj.bag.get_start_time()
+    threshold = bag_start + args.gap_time
 
-    # Extract data and project LiDAR points onto the image
-    pc_msg, img_msg = projector.extract_data(args.lidar_topic, args.image_topic)
-    projected_pts, pts_3d, img = projector.project_lidar_to_image(pc_msg, img_msg, T_cam_lidar, intrinsics, args.image_topic)
+    # Read messages after threshold
+    lidar_msgs, image_msgs = [], []
+    for topic, msg, tm in proj.bag.read_messages(topics=[args.lidar_topic, args.image_topic]):
+        ts = tm.to_sec()
+        if ts < threshold:
+            continue
+        if topic == args.lidar_topic:
+            lidar_msgs.append((msg, ts))
+        else:
+            image_msgs.append((msg, ts))
 
-    # Visualize the result
-    projector.visualize(projected_pts, pts_3d, img)
+    # Match frames within 20ms
+    max_dt = 0.02
+    pairs = []
+    for img_msg, img_ts in image_msgs:
+        lid_msg, lid_ts = min(lidar_msgs, key=lambda x: abs(x[1] - img_ts))
+        if abs(lid_ts - img_ts) < max_dt:
+            pairs.append((lid_msg, lid_ts, img_msg, img_ts))
+
+    # Process and visualize each pair
+    for lid_msg, lid_ts, img_msg, img_ts in pairs:
+        T1 = proj.interp_mat(img_ts)
+        T2 = proj.interp_mat(lid_ts)
+        if T1 is None or T2 is None:
+            continue
+        T_cam = T_cl @ (T1 @ np.linalg.inv(T2))
+        img = proj.ros_to_image(img_msg, args.image_topic)
+        pts2d, pts3d = proj.project(lid_msg, img, T_cam, K)
+        proj.visualize(img, pts2d, pts3d)
