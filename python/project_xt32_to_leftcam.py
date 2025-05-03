@@ -8,19 +8,19 @@ import argparse
 from scipy.spatial.transform import Slerp
 import matplotlib.pyplot as plt
 import sys
+import os
 
 class BagProjector:
-    def __init__(self, bag_path, gt_pose_file, dist_coeffs):
+    def __init__(self, bag_path, gt_pose_file):
         # Load ROS bag and distortion coefficients
         self.bag = rosbag.Bag(bag_path)
-        self.dist_coeffs = dist_coeffs
         # Load ground truth poses from CSV: time,x,y,z,qx,qy,qz,qw
         data = np.loadtxt(gt_pose_file, delimiter=',')
         # Separate times and pose arrays for fast interpolation
         self.times = data[:, 0]
         self.poses = data[:, 1:8]  # [x,y,z,qx,qy,qz,qw]
 
-    def quat_to_mat(self, xyzqxqyqzqw):
+    def pq_to_mat(self, xyzqxqyqzqw): # q : xyzw
         # Convert translation+quaternion to 4x4 transform
         arr = np.asarray(xyzqxqyqzqw, dtype=float).flatten()
         # Expect at least 7 elements: x,y,z,qx,qy,qz,qw
@@ -41,30 +41,29 @@ class BagProjector:
         if t < self.times[0] or t > self.times[-1]:
             return None
 
-        # 找到时间区间
+        # find the time interval
         idx = np.searchsorted(self.times, t)
         t1, t2 = self.times[idx - 1], self.times[idx]
         alpha = (t - t1) / (t2 - t1)
 
-        # 提取平移和四元数
+        # extract translation and quaternion
         trans1, trans2 = self.poses[idx - 1, :3], self.poses[idx, :3]
         quat1, quat2 = self.poses[idx - 1, 3:], self.poses[idx, 3:]
 
-        # 线性插值平移
+        # linear interpolate translation
         interpolated_translation = (1 - alpha) * trans1 + alpha * trans2
 
-        # 使用 Slerp 插值四元数
+        # use slerp to interpolate quaternion
         rotations = Rotation.from_quat([quat1, quat2])
         slerp = Slerp([t1, t2], rotations)
         interpolated_rotation = slerp(t).as_matrix()
 
-        # 构造 4x4 变换矩阵
         T = np.eye(4)
         T[:3, :3] = interpolated_rotation
         T[:3, 3] = interpolated_translation
         return T
 
-    def ros_to_image(self, img_msg, topic):
+    def img_msg_to_numpy(self, img_msg, topic):
         # Convert ROS Image or CompressedImage to BGR numpy array
         if 'compressed' in topic:
             arr = np.frombuffer(img_msg.data, np.uint8)
@@ -72,7 +71,7 @@ class BagProjector:
         raw = np.frombuffer(img_msg.data, np.uint8).reshape(img_msg.height, img_msg.width, 4)
         return cv2.cvtColor(raw, cv2.COLOR_BGRA2BGR)
 
-    def project(self, pc_msg, img, T_cam_l, K):
+    def project(self, pc_msg, img, T_cam_l, K, dist_coeffs):
         # Project point cloud into the image
         points = np.array(list(pc2.read_points(pc_msg, field_names=('x','y','z'), skip_nans=True)))
         # Transform to camera frame and filter
@@ -80,7 +79,7 @@ class BagProjector:
         valid_cam = pts_cam[:, 2] > 0
         pts_cam = pts_cam[valid_cam]
         # Project with distortion
-        pts2d, _ = cv2.projectPoints(pts_cam, np.zeros(3), np.zeros(3), K, self.dist_coeffs)
+        pts2d, _ = cv2.projectPoints(pts_cam, np.zeros(3), np.zeros(3), K, dist_coeffs)
         pts2d = pts2d.reshape(-1, 2).astype(int)
         h, w = img.shape[:2]
         valid2d = (pts2d[:,0]>=0)&(pts2d[:,0]<w)&(pts2d[:,1]>=0)&(pts2d[:,1]<h)
@@ -105,35 +104,44 @@ class BagProjector:
             cv2.destroyAllWindows()
             sys.exit()
 
+def convert_seqname_to_dateval(bagfullpath):
+    seqdate = os.path.basename(os.path.dirname(bagfullpath))
+    if 'aft' in seqdate or 'eve' in seqdate:
+        val = float(seqdate[:-4]) + 0.5
+    else:
+        val = float(seqdate)
+    return val
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='LiDAR to Camera Projection')
     parser.add_argument('--bag_path', required=True)
     parser.add_argument('--lidar_topic', required=True)
     parser.add_argument('--image_topic', required=True)
     parser.add_argument('--gt_pose_file', required=True)
-    parser.add_argument('--date_input', required=True)
-    parser.add_argument('--gap_time', type=float, default=0.0, help='Seconds to skip from bag start time')
+    parser.add_argument('--skip_seconds', type=float, default=0.0, help='Seconds to skip from bag start time')
     args = parser.parse_args()
 
     # Select calibration based on date
-    split = 20231207
-    d = int(args.date_input)
-    if d > split:
+    split = float(20231207)
+    d = convert_seqname_to_dateval(args.bag_path) # data，eg：20240113
+
+    # extr：xt32_T_zed2leftcam
+    if d > split:  # SUV platform
         extr = [0.0695283917427731, -0.008381612991474873, -0.17223038663727022,
                 0.019635536507920586, 0.7097335839994078, -0.7039714840647372, -0.017799861603211602]
         K = np.array([[266.52, 0, 345.01], [0, 266.80, 189.99], [0, 0, 1]])
-    else:
+    else:  # handheld or ebike platform
         extr =  [0.07493894778041606, -0.16471796028449764, -0.09812580091216104,
                  -0.007712187968660904, -0.698602566500298,0.7154675436354508, 0.0010817764035590007]
         K = np.array([[533.04, 0, 659.02], [0, 533.60, 364.98], [0, 0, 1]])
     dist = np.array([-0.0567891, 0.032141, 0.000169392, -0.000430803, -0.0128658])
 
-    proj = BagProjector(args.bag_path, args.gt_pose_file, dist)
-    T_lc = proj.quat_to_mat(extr)
+    proj = BagProjector(args.bag_path, args.gt_pose_file)
+    T_lc = proj.pq_to_mat(extr)
     T_cl = np.linalg.inv(T_lc)
 
     bag_start = proj.bag.get_start_time()
-    threshold = bag_start + args.gap_time
+    threshold = bag_start + args.skip_seconds
 
     # Read messages after threshold
     lidar_msgs, image_msgs = [], []
@@ -161,6 +169,6 @@ if __name__ == '__main__':
         if T1 is None or T2 is None:
             continue
         T_cam = T_cl @ (T1 @ np.linalg.inv(T2))
-        img = proj.ros_to_image(img_msg, args.image_topic)
-        pts2d, pts3d = proj.project(lid_msg, img, T_cam, K)
+        img = proj.img_msg_to_numpy(img_msg, args.image_topic)
+        pts2d, pts3d = proj.project(lid_msg, img, T_cam, K, dist)
         proj.visualize(img, pts2d, pts3d)
