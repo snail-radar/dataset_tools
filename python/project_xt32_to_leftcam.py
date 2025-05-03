@@ -5,8 +5,9 @@ import sensor_msgs.point_cloud2 as pc2
 from scipy.spatial.transform import Rotation
 import cv2
 import argparse
-import tkinter as tk
+from scipy.spatial.transform import Slerp
 import matplotlib.pyplot as plt
+import sys
 
 class BagProjector:
     def __init__(self, bag_path, gt_pose_file, dist_coeffs):
@@ -18,8 +19,6 @@ class BagProjector:
         # Separate times and pose arrays for fast interpolation
         self.times = data[:, 0]
         self.poses = data[:, 1:8]  # [x,y,z,qx,qy,qz,qw]
-        # Precompute 4x4 matrices for each pose
-        self.T_mats = np.array([self.quat_to_mat(p) for p in self.poses])
 
     def quat_to_mat(self, xyzqxqyqzqw):
         # Convert translation+quaternion to 4x4 transform
@@ -38,13 +37,32 @@ class BagProjector:
         return T
 
     def interp_mat(self, t):
-        # Linear interpolate between two closest poses
-        idx = np.searchsorted(self.times, t)
-        if idx == 0 or idx >= len(self.times):
+        # 检查时间范围
+        if t < self.times[0] or t > self.times[-1]:
             return None
-        t1, t2 = self.times[idx-1], self.times[idx]
+
+        # 找到时间区间
+        idx = np.searchsorted(self.times, t)
+        t1, t2 = self.times[idx - 1], self.times[idx]
         alpha = (t - t1) / (t2 - t1)
-        return (1 - alpha) * self.T_mats[idx-1] + alpha * self.T_mats[idx]
+
+        # 提取平移和四元数
+        trans1, trans2 = self.poses[idx - 1, :3], self.poses[idx, :3]
+        quat1, quat2 = self.poses[idx - 1, 3:], self.poses[idx, 3:]
+
+        # 线性插值平移
+        interpolated_translation = (1 - alpha) * trans1 + alpha * trans2
+
+        # 使用 Slerp 插值四元数
+        rotations = Rotation.from_quat([quat1, quat2])
+        slerp = Slerp([t1, t2], rotations)
+        interpolated_rotation = slerp(t).as_matrix()
+
+        # 构造 4x4 变换矩阵
+        T = np.eye(4)
+        T[:3, :3] = interpolated_rotation
+        T[:3, 3] = interpolated_translation
+        return T
 
     def ros_to_image(self, img_msg, topic):
         # Convert ROS Image or CompressedImage to BGR numpy array
@@ -69,25 +87,23 @@ class BagProjector:
         return pts2d[valid2d], pts_cam[valid2d]
 
     def visualize(self, img, pts2d, pts_cam):
-        # Display projection with small circles; press any key for next, 'q' to exit
-        # Center window
-        root = tk.Tk(); sw, sh = root.winfo_screenwidth(), root.winfo_screenheight(); root.withdraw()
+        if pts_cam.ndim != 2 or pts_cam.shape[1] < 3:
+            raise ValueError("`pts_cam` must be a 2D array with at least 3 columns (x, y, z).")
+
         vis = img.copy()
-        depths = pts_cam[:,2]
-        nd = (depths - depths.min())/(depths.max()-depths.min())
-        colors = (plt.cm.turbo(nd)[:,:3]*255).astype(int)
-        for (x,y),c in zip(pts2d, colors):
-            cv2.circle(vis, (x,y), 1, (int(c[2]),int(c[1]),int(c[0])), 1)
+        depths = pts_cam[:, 2]
+        nd = (depths - depths.min()) / (depths.max() - depths.min())
+        colors = (plt.cm.turbo(nd)[:, :3] * 255).astype(int)
+
+        for (x, y), c in zip(pts2d, colors):
+            cv2.circle(vis, (int(x), int(y)), 1, (int(c[2]), int(c[1]), int(c[0])), 1)
+
         win = 'Projection'
-        cv2.namedWindow(win, cv2.WINDOW_NORMAL)
-        H, W = vis.shape[:2]
-        scale = min(sw*0.8/W, sh*0.8/H, 1)
-        cv2.resizeWindow(win, int(W*scale), int(H*scale))
-        cv2.moveWindow(win, int((sw-W*scale)/2), int((sh-H*scale)/2))
         cv2.imshow(win, vis)
-        k = cv2.waitKey(0) & 0xFF
-        cv2.destroyWindow(win)
-        if k == ord('q'): exit(0)
+        key = cv2.waitKey(30) & 0xFF
+        if key in (ord('q'), ord('Q')):
+            cv2.destroyAllWindows()
+            sys.exit()
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description='LiDAR to Camera Projection')
