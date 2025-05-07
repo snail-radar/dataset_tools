@@ -9,6 +9,7 @@ from scipy.spatial.transform import Slerp
 import matplotlib.pyplot as plt
 import sys
 import os
+from collections import deque
 
 class BagProjector:
     def __init__(self, bag_path, gt_pose_file):
@@ -88,15 +89,12 @@ class BagProjector:
     def visualize(self, img, pts2d, pts_cam):
         if pts_cam.ndim != 2 or pts_cam.shape[1] < 3:
             raise ValueError("`pts_cam` must be a 2D array with at least 3 columns (x, y, z).")
-
         vis = img.copy()
         depths = pts_cam[:, 2]
         nd = (depths - depths.min()) / (depths.max() - depths.min())
         colors = (plt.cm.turbo(nd)[:, :3] * 255).astype(int)
-
         for (x, y), c in zip(pts2d, colors):
             cv2.circle(vis, (int(x), int(y)), 1, (int(c[2]), int(c[1]), int(c[0])), 1)
-
         win = 'Projection'
         cv2.imshow(win, vis)
         key = cv2.waitKey(30) & 0xFF
@@ -143,32 +141,32 @@ if __name__ == '__main__':
     bag_start = proj.bag.get_start_time()
     threshold = bag_start + args.skip_seconds
 
-    # Read messages after threshold
-    lidar_msgs, image_msgs = [], []
+    lidar_buffer = deque(maxlen=1)
+
     for topic, msg, tm in proj.bag.read_messages(topics=[args.lidar_topic, args.image_topic]):
         ts = tm.to_sec()
         if ts < threshold:
             continue
+
         if topic == args.lidar_topic:
-            lidar_msgs.append((msg, ts))
-        else:
-            image_msgs.append((msg, ts))
+            # Store the LiDAR message and timestamp
+            lidar_buffer.clear()
+            lidar_buffer.append((msg, ts))
 
-    # Match frames within 20ms
-    max_dt = 0.02
-    pairs = []
-    for img_msg, img_ts in image_msgs:
-        lid_msg, lid_ts = min(lidar_msgs, key=lambda x: abs(x[1] - img_ts))
-        if abs(lid_ts - img_ts) < max_dt:
-            pairs.append((lid_msg, lid_ts, img_msg, img_ts))
+        elif topic == args.image_topic:
+            if not lidar_buffer:
+                continue
 
-    # Process and visualize each pair
-    for lid_msg, lid_ts, img_msg, img_ts in pairs:
-        T1 = proj.interp_mat(img_ts)
-        T2 = proj.interp_mat(lid_ts)
-        if T1 is None or T2 is None:
-            continue
-        T_cam = T_cl @ (T1 @ np.linalg.inv(T2))
-        img = proj.img_msg_to_numpy(img_msg, args.image_topic)
-        pts2d, pts3d = proj.project(lid_msg, img, T_cam, K, dist)
-        proj.visualize(img, pts2d, pts3d)
+            lid_msg, lid_ts = lidar_buffer[0]
+            img_msg, img_ts = msg, ts
+
+            # interpolate the pose
+            T1 = proj.interp_mat(img_ts)
+            T2 = proj.interp_mat(lid_ts)
+            if T1 is None or T2 is None:
+                continue
+
+            T_cam = T_cl @ (T1 @ np.linalg.inv(T2))
+            img = proj.img_msg_to_numpy(img_msg, args.image_topic)
+            pts2d, pts3d = proj.project(lid_msg, img, T_cam, K, dist)
+            proj.visualize(img, pts2d, pts3d)
