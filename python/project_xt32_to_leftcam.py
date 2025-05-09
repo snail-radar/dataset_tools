@@ -38,7 +38,6 @@ class BagProjector:
         return T
 
     def interp_mat(self, t):
-        # 检查时间范围
         if t < self.times[0] or t > self.times[-1]:
             return None
 
@@ -166,7 +165,7 @@ if __name__ == '__main__':
             if T1 is None or T2 is None:
                 continue
 
-            T_cam = T_cl @ (T1 @ np.linalg.inv(T2))
+            T_C1L2 = T_cl @ np.linalg.inv(T1) @ T2
             img = proj.img_msg_to_numpy(img_msg, args.image_topic)
-            pts2d, pts3d = proj.project(lid_msg, img, T_cam, K, dist)
+            pts2d, pts3d = proj.project(lid_msg, img, T_C1L2, K, dist)
             proj.visualize(img, pts2d, pts3d)
