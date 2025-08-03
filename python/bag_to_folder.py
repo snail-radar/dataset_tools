@@ -132,13 +132,14 @@ def extract_and_save_bin(bag_file, output_dir, chosentopics=None):
         file_path = os.path.join(output_dir, subpath)
         upper_dir = os.path.dirname(file_path)
         if os.path.isdir(upper_dir):
+            pass
             # Remove all contents of the directory
-            for item in os.listdir(upper_dir):
-                item_path = os.path.join(upper_dir, item)
-                if os.path.isfile(item_path) or os.path.islink(item_path):
-                    os.unlink(item_path)  # Remove files or symbolic links
-                elif os.path.isdir(item_path):
-                    shutil.rmtree(item_path)  # Remove directories
+            # for item in os.listdir(upper_dir):
+            #     item_path = os.path.join(upper_dir, item)
+            #     if os.path.isfile(item_path) or os.path.islink(item_path):
+            #         os.unlink(item_path)  # Remove files or symbolic links
+            #     elif os.path.isdir(item_path):
+            #         shutil.rmtree(item_path)  # Remove directories
         else:
             # Create the directory if it doesn't exist
             os.makedirs(upper_dir, exist_ok=True)
@@ -296,7 +297,6 @@ def extract_and_save_bin(bag_file, output_dir, chosentopics=None):
                         f.write(f'{t.secs}.{t.nsecs:09d}\n')
 
     bag.close()
-    get_frame_ids_from_bag(bag_file, output_dir)
 
 def extract_and_save_ascii(bag_file, output_dir):
     bag = rosbag.Bag(bag_file, 'r')
@@ -341,13 +341,14 @@ def extract_and_save_ascii(bag_file, output_dir):
         file_path = os.path.join(output_dir, subpath)
         upper_dir = os.path.dirname(file_path)
         if os.path.isdir(upper_dir):
+            pass
             # Remove all contents of the directory
-            for item in os.listdir(upper_dir):
-                item_path = os.path.join(upper_dir, item)
-                if os.path.isfile(item_path) or os.path.islink(item_path):
-                    os.unlink(item_path)  # Remove files or symbolic links
-                elif os.path.isdir(item_path):
-                    shutil.rmtree(item_path)  # Remove directories
+            # for item in os.listdir(upper_dir):
+            #     item_path = os.path.join(upper_dir, item)
+            #     if os.path.isfile(item_path) or os.path.islink(item_path):
+            #         os.unlink(item_path)  # Remove files or symbolic links
+            #     elif os.path.isdir(item_path):
+            #         shutil.rmtree(item_path)  # Remove directories
         else:
             # Create the directory if it doesn't exist
             os.makedirs(upper_dir, exist_ok=True)
@@ -501,7 +502,6 @@ def extract_and_save_ascii(bag_file, output_dir):
                         f.write(f'{t.secs}.{t.nsecs:09d}\n')
 
     bag.close()
-    get_frame_ids_from_bag(bag_file, output_dir)
 
 def get_frame_ids_from_bag(bag_file, output_dir):
     frame_ids = {}
@@ -528,4 +528,6 @@ if __name__ == '__main__':
         extract_and_save_bin(args.bag_file, args.output_dir)
     else:
         extract_and_save_ascii(args.bag_file, args.output_dir)
+    get_frame_ids_from_bag(args.bag_file, args.output_dir)
+
 
