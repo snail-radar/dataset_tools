@@ -186,7 +186,7 @@ def write_bag(input_folder, output_bag):
                         msg = CompressedImage()
                         msg.header.stamp = timestamp
                         msg.header.frame_id = frame_ids[topic]
-                        msg.format = 'mono8; jpeg compressed '
+                        msg.format = 'mono8; jpeg compressed'
                         msg.data = img.read()
                         bag.write(topic, msg, msg.header.stamp)
         elif msg_type == PointCloud:
